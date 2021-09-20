@@ -1,0 +1,151 @@
+{
+	"name": "PL_SENDEMAIL",
+	"properties": {
+		"description": "Log execution status and send an email to admins",
+		"activities": [
+			{
+				"name": "ACT_GEN_LKP_LOGIC_APP",
+				"description": "Lookup the raw2stage notebooks using the auditing metadatatable",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 5,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select *\nfrom adf.LogicAppURL\nwhere logicapptype = 'email'",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_ASQL_SQL_AUTH",
+						"type": "DatasetReference",
+						"parameters": {
+							"DS_ASQL_SQL_AUTH_CONN_SECRET": {
+								"value": "@variables('ETL_ASQL_CONN_SEC')",
+								"type": "Expression"
+							},
+							"DS_DB_SCHEMA_NAME": {
+								"value": "adf",
+								"type": "Expression"
+							},
+							"DS_DB_TABLE_NAME": "LogicAppURL"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ACT_ITRC_FOR_EACH_TABLE",
+				"description": "Iterate through each item and perform the copy ",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_LKP_LOGIC_APP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('ACT_GEN_LKP_LOGIC_APP').output.value",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 20,
+					"activities": [
+						{
+							"name": "ACT_GEN_WEB_CALL_LOGIC_APP",
+							"description": "This logic app sends an email to admins if enabled",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"url": {
+									"value": "@item().LogicAppURL",
+									"type": "Expression"
+								},
+								"method": "POST",
+								"headers": {
+									"Content-Type": "application/json"
+								},
+								"body": {
+									"value": "{ \n\"DataFactoryName\": \"@{pipeline().DataFactory}\", \n\"EmailTo\":\"@{pipeline().parameters.EmailTo}\", \n\"Message\":\"@{pipeline().parameters.Message}\", \"PipelineName\":\"@{pipeline().parameters.PipelineName}\", \"PipelineRunID\":\"@{pipeline().parameters.PipelineRunID}\", \"Subject\":\"@{pipeline().parameters.Subject}\", \"Importance\":\"@{pipeline().parameters.Importance}\",\n\"Color\":\"@{pipeline().parameters.Color}\" \n}",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"IsError": {
+				"type": "bool"
+			},
+			"EmailTo": {
+				"type": "string"
+			},
+			"Subject": {
+				"type": "string"
+			},
+			"Message": {
+				"type": "string"
+			},
+			"Importance": {
+				"type": "string"
+			},
+			"EmailEnabled": {
+				"type": "bool"
+			},
+			"PipelineName": {
+				"type": "string"
+			},
+			"PipelineRunID": {
+				"type": "string"
+			},
+			"DataFactoryName": {
+				"type": "string"
+			},
+			"Etl_DB_Conn_Secret": {
+				"type": "string"
+			},
+			"Color": {
+				"type": "string"
+			},
+			"TableSchema": {
+				"type": "string"
+			},
+			"TableName": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"ETL_ASQL_CONN_SEC": {
+				"type": "String",
+				"defaultValue": "sec-mdw-db-connection-string"
+			}
+		},
+		"folder": {
+			"name": "000_LOGS_AND_EMAILS"
+		},
+		"annotations": [],
+		"lastPublishTime": "2021-09-14T14:26:02Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

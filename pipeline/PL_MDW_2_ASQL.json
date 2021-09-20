@@ -1,0 +1,929 @@
+{
+	"name": "PL_MDW_2_ASQL",
+	"properties": {
+		"description": "run the correct dbr notebooks to promote raw data to staget data",
+		"activities": [
+			{
+				"name": "ACT_GEN_LKP_TABLES",
+				"description": "Lookup the tables to move from adls to asql in our metadata table",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_SPRC_LOG_PL_START",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 5,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select * from adf.DataSource where Mdw2Asql = 1",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_ASQL_SQL_AUTH",
+						"type": "DatasetReference",
+						"parameters": {
+							"DS_ASQL_SQL_AUTH_CONN_SECRET": {
+								"value": "@variables('ETL_ASQL_CONN_SEC')",
+								"type": "Expression"
+							},
+							"DS_DB_SCHEMA_NAME": {
+								"value": "adf",
+								"type": "Expression"
+							},
+							"DS_DB_TABLE_NAME": "DataSource"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ACT_ITRC_FOR_EACH_TABLE",
+				"description": "Iterate through each item and perform the copy ",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_LKP_TABLES",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('ACT_GEN_LKP_TABLES').output.value",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 8,
+					"activities": [
+						{
+							"name": "ACT_GEN_SET_VAR_ERR_FLG_3",
+							"description": "set error_flag variable to true",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "IS_ERROR",
+								"value": true
+							}
+						},
+						{
+							"name": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+							"description": "Notify admins raw2stage nb failed",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ACT_MT_COPY_ADLS_2_ASQL",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"IsError": true,
+									"EmailTo": {
+										"value": "@pipeline().parameters.SendEmailNotificationAddress",
+										"type": "Expression"
+									},
+									"Subject": {
+										"value": "@concat('FAILURE: Copy data failure -  ', pipeline().Pipeline, ' ',item().datasourcename, '.', item().databasetablename)",
+										"type": "Expression"
+									},
+									"Message": {
+										"value": "@concat('Copy data activity - ',   item().datasourcename, '/', item().databasetablename, ' Error Code:', activity('ACT_MT_COPY_ADLS_2_ASQL').error.errorCode, ' - Message:', activity('ACT_MT_COPY_ADLS_2_ASQL').error.message)",
+										"type": "Expression"
+									},
+									"Importance": "High",
+									"EmailEnabled": {
+										"value": "@pipeline().parameters.EnableNotifications",
+										"type": "Expression"
+									},
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunID": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"DataFactoryName": {
+										"value": "@pipeline().DataFactory",
+										"type": "Expression"
+									},
+									"Etl_DB_Conn_Secret": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									},
+									"Color": "Red",
+									"TableSchema": {
+										"value": "@{item().Datasourcename}",
+										"type": "Expression"
+									},
+									"TableName": {
+										"value": "@{item().Databasetablename}",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "ACT_GEN_SPRC_LOG_ITEM_START",
+							"description": "start ASQL SQL Auth to delta tables full load",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 3,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+								"storedProcedureParameters": {
+									"CallingProcess": {
+										"value": "Copy",
+										"type": "String"
+									},
+									"DataFactoryName": {
+										"value": {
+											"value": "@pipeline().DataFactory",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"ExecutionMessage": {
+										"value": {
+											"value": "Started copying data from ADLS to ASQL for table @{item().DataSourceName}.@{item().DatabaseTableName}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"IsEnd": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"IsError": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"IsStart": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerID": {
+										"value": {
+											"value": "@pipeline().TriggerId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerName": {
+										"value": {
+											"value": "@pipeline().TriggerName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerTime": {
+										"value": {
+											"value": "@pipeline().TriggerTime",
+											"type": "Expression"
+										},
+										"type": "DateTime"
+									},
+									"PipelineTriggerType": {
+										"value": {
+											"value": "@pipeline().TriggerType",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableName": {
+										"value": {
+											"value": "@{item().DatalakeEntityName}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableSchema": {
+										"value": {
+											"value": "@{item().DataSourceName}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"IsInnerActivity": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"RowsCopied": {
+										"value": "0",
+										"type": "Int64"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_ASQL_SQL_AUTH",
+								"type": "LinkedServiceReference",
+								"parameters": {
+									"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "ACT_GEN_SPRC_LOG_ITEM_END",
+							"description": "",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "ACT_MT_COPY_ADLS_2_ASQL",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 3,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+								"storedProcedureParameters": {
+									"CallingProcess": {
+										"value": "Copy",
+										"type": "String"
+									},
+									"DataFactoryName": {
+										"value": {
+											"value": "@pipeline().DataFactory",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"ExecutionMessage": {
+										"value": {
+											"value": "Finished copying data from ADLS to ASQL for table @{item().DataSourceName}.@{item().DatabaseTableName}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"IsEnd": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"IsError": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"IsStart": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerID": {
+										"value": {
+											"value": "@pipeline().TriggerId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerName": {
+										"value": {
+											"value": "@pipeline().TriggerName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerTime": {
+										"value": {
+											"value": "@pipeline().TriggerTime",
+											"type": "Expression"
+										},
+										"type": "DateTime"
+									},
+									"PipelineTriggerType": {
+										"value": {
+											"value": "@pipeline().TriggerType",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableName": {
+										"value": {
+											"value": "@{item().DatalakeEntityName}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableSchema": {
+										"value": {
+											"value": "@{item().DataSourceName}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"IsInnerActivity": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"RowsCopied": {
+										"value": "0",
+										"type": "Int64"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_ASQL_SQL_AUTH",
+								"type": "LinkedServiceReference",
+								"parameters": {
+									"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "ACT_MT_COPY_ADLS_2_ASQL",
+							"description": "Copy data from adls mdw container to azure sql",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "ACT_GEN_SPRC_TRUNCATE_TABLE",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.03:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "ParquetSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"wildcardFolderPath": {
+											"value": "@item().DatalakePath",
+											"type": "Expression"
+										},
+										"wildcardFileName": "*.parquet",
+										"enablePartitionDiscovery": false
+									}
+								},
+								"sink": {
+									"type": "AzureSqlSink",
+									"tableOption": "autoCreate",
+									"disableMetricsCollection": false
+								},
+								"enableStaging": false,
+								"parallelCopies": 5,
+								"dataIntegrationUnits": 64
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_ADLS_MDW",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": {
+											"value": "@item().DataSourceName",
+											"type": "Expression"
+										},
+										"FileName": {
+											"value": "@item().DataLakeEntityName",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ASQL_SQL_AUTH",
+									"type": "DatasetReference",
+									"parameters": {
+										"DS_ASQL_SQL_AUTH_CONN_SECRET": "sec-mdw-db-connection-string",
+										"DS_DB_SCHEMA_NAME": "@{item().DataSourceName}",
+										"DS_DB_TABLE_NAME": "@{item().DatalakeEntityName}"
+									}
+								}
+							]
+						},
+						{
+							"name": "ACT_GEN_SPRC_TRUNCATE_TABLE",
+							"description": "Truncate asql table",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "ACT_GEN_SPRC_LOG_ITEM_START",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 3,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[adf].[uspTruncateTable]",
+								"storedProcedureParameters": {
+									"DatabaseSchemaName": {
+										"value": {
+											"value": "@item().DataSourceName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"DatabaseTableName": {
+										"value": {
+											"value": "@item().DatabaseTableName",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_ASQL_SQL_AUTH",
+								"type": "LinkedServiceReference",
+								"parameters": {
+									"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+				"description": "",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_LKP_TABLES",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_LOGMSG_AND_SENDEMAIL",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IsError": true,
+						"EmailTo": {
+							"value": "@pipeline().parameters.SendEmailNotificationAddress",
+							"type": "Expression"
+						},
+						"Subject": {
+							"value": "@concat('FAILURE - ' , pipeline().Pipeline)",
+							"type": "Expression"
+						},
+						"Message": {
+							"value": "@concat('error code:',\nactivity('ACT_GEN_LKP_TABLES').output.error.errorCode\n, ' - Message: ',\nactivity('ACT_GEN_LKP_TABLES').output.error.message\n)",
+							"type": "Expression"
+						},
+						"Importance": "High",
+						"EmailEnabled": {
+							"value": "@pipeline().parameters.EnableNotifications",
+							"type": "Expression"
+						},
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunID": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"DataFactoryName": {
+							"value": "@pipeline().DataFactory",
+							"type": "Expression"
+						},
+						"Etl_DB_Conn_Secret": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						},
+						"Color": "Red"
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_EPIPE_SUCCESS_NOTIFY_1",
+				"description": "email success notification",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_SPRC_LOG_PL_END",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_LOGMSG_AND_SENDEMAIL",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IsError": false,
+						"EmailTo": {
+							"value": "@pipeline().parameters.SendEmailNotificationAddress",
+							"type": "Expression"
+						},
+						"Subject": {
+							"value": "@concat('SUCCESS - ', pipeline().Pipeline)",
+							"type": "Expression"
+						},
+						"Message": {
+							"value": "MDW2ASQL Completed",
+							"type": "Expression"
+						},
+						"Importance": "Low",
+						"EmailEnabled": {
+							"value": "@pipeline().parameters.EnableNotifications",
+							"type": "Expression"
+						},
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunID": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"DataFactoryName": {
+							"value": "@pipeline().DataFactory",
+							"type": "Expression"
+						},
+						"Etl_DB_Conn_Secret": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						},
+						"Color": "Green"
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_SET_VAR_ERR_FLG_1",
+				"description": "set error_flag variable to true",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "IS_ERROR",
+					"value": true
+				}
+			},
+			{
+				"name": "ACT_GEN_SPRC_LOG_PL_START",
+				"description": "start mdw_2_asql pipeline",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+					"storedProcedureParameters": {
+						"CallingProcess": {
+							"value": "Start of MDW_2_ASQL",
+							"type": "String"
+						},
+						"DataFactoryName": {
+							"value": {
+								"value": "@pipeline().DataFactory",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ExecutionMessage": {
+							"value": "Started copying data from ADLS to ASQL",
+							"type": "String"
+						},
+						"IsEnd": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"IsError": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"IsStart": {
+							"value": "true",
+							"type": "Boolean"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunID": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerID": {
+							"value": {
+								"value": "@pipeline().TriggerId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerName": {
+							"value": {
+								"value": "@pipeline().TriggerName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerTime": {
+							"value": {
+								"value": "@pipeline().TriggerTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"PipelineTriggerType": {
+							"value": {
+								"value": "@pipeline().TriggerType",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"TableName": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"TableSchema": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"IsInnerActivity": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"RowsCopied": {
+							"value": "0",
+							"type": "Int64"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_ASQL_SQL_AUTH",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_SPRC_LOG_PL_END",
+				"description": "end of mdw_2_asql pipeline",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "ACT_ITRC_FOR_EACH_TABLE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+					"storedProcedureParameters": {
+						"CallingProcess": {
+							"value": "End of MDW_2_ASQL",
+							"type": "String"
+						},
+						"DataFactoryName": {
+							"value": {
+								"value": "@pipeline().DataFactory",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ExecutionMessage": {
+							"value": "Finished copying data from ADLS to ASQL",
+							"type": "String"
+						},
+						"IsEnd": {
+							"value": "true",
+							"type": "Boolean"
+						},
+						"IsError": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"IsStart": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunID": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerID": {
+							"value": {
+								"value": "@pipeline().TriggerId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerName": {
+							"value": {
+								"value": "@pipeline().TriggerName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerTime": {
+							"value": {
+								"value": "@pipeline().TriggerTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"PipelineTriggerType": {
+							"value": {
+								"value": "@pipeline().TriggerType",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"TableName": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"TableSchema": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"IsInnerActivity": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"RowsCopied": {
+							"value": "0",
+							"type": "Int64"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_ASQL_SQL_AUTH",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						}
+					}
+				}
+			}
+		],
+		"parameters": {
+			"EnableNotifications": {
+				"type": "bool",
+				"defaultValue": true
+			},
+			"SendEmailNotificationAddress": {
+				"type": "string",
+				"defaultValue": "advancedanalytics@portsamerica.com"
+			}
+		},
+		"variables": {
+			"ETL_ASQL_CONN_SEC": {
+				"type": "String",
+				"defaultValue": "sec-mdw-db-connection-string"
+			},
+			"IS_ERROR": {
+				"type": "Boolean"
+			}
+		},
+		"folder": {
+			"name": "400_MDW_2_ASQL"
+		},
+		"annotations": [],
+		"lastPublishTime": "2021-09-14T14:26:04Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

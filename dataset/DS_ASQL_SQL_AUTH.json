@@ -1,0 +1,37 @@
+{
+	"name": "DS_ASQL_SQL_AUTH",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ASQL_SQL_AUTH",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"LS_ASQL_SQL_AUTH_CONN_SECRET": "sec-mdw-db-connection-string"
+			}
+		},
+		"parameters": {
+			"DS_ASQL_SQL_AUTH_CONN_SECRET": {
+				"type": "String"
+			},
+			"DS_DB_SCHEMA_NAME": {
+				"type": "String"
+			},
+			"DS_DB_TABLE_NAME": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": {
+				"value": "@dataset().DS_DB_SCHEMA_NAME",
+				"type": "Expression"
+			},
+			"table": {
+				"value": "@dataset().DS_DB_TABLE_NAME",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
