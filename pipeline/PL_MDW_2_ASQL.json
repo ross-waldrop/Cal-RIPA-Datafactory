@@ -26,7 +26,7 @@
 				"typeProperties": {
 					"source": {
 						"type": "AzureSqlSource",
-						"sqlReaderQuery": "select * from adf.DataSource where Mdw2Asql = 1",
+						"sqlReaderQuery": "select * from adf.DataSource where datasourceid = 15",
 						"queryTimeout": "02:00:00",
 						"partitionOption": "None"
 					},
