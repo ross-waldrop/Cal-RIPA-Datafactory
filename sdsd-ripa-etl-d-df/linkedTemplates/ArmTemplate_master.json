@@ -1,0 +1,84 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "sdsd-ripa-etl-d-df"
+		},
+		"LS_COSMOSDB_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'LS_COSMOSDB'"
+		},
+		"LS_ADLS_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://sdsdripaetldsa.dfs.core.usgovcloudapi.net/"
+		},
+		"LS_ADLS_properties_typeProperties_tenant": {
+			"type": "string",
+			"defaultValue": "a44e5271-a297-4daf-a3a9-f90a3146f3f5"
+		},
+		"LS_ADLS_properties_typeProperties_servicePrincipalId": {
+			"type": "string",
+			"defaultValue": "498da49a-984d-42b0-a96f-e42a0bce03d1"
+		},
+		"LS_ASQL_SQL_AUTH_properties_typeProperties_connectionString_secretName": {
+			"type": "string",
+			"defaultValue": "@linkedService().LS_ASQL_SQL_AUTH_CONN_SECRET"
+		},
+		"LS_KEY_VAULT_properties_typeProperties_baseUrl": {
+			"type": "string",
+			"defaultValue": "https://sdsd-ripa-etl-d-kv.vault.usgovcloudapi.net/"
+		},
+		"containerUri": {
+			"type": "string",
+			"metadata": "URI to storage account containing linked ARM templates"
+		},
+		"containerSasToken": {
+			"type": "string",
+			"metadata": "Sas token to storage account containing linked ARM templates"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "sdsd-ripa-etl-d-df_ArmTemplate_0",
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2018-02-01",
+			"properties": {
+				"mode": "incremental",
+				"templateLink": {
+					"uri": "[concat(parameters('containerUri'), '/ArmTemplate_0.json', parameters('containerSasToken'))]",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"factoryName": {
+						"value": "[parameters('factoryName')]"
+					},
+					"LS_COSMOSDB_connectionString": {
+						"value": "[parameters('LS_COSMOSDB_connectionString')]"
+					},
+					"LS_KEY_VAULT_properties_typeProperties_baseUrl": {
+						"value": "[parameters('LS_KEY_VAULT_properties_typeProperties_baseUrl')]"
+					},
+					"LS_ADLS_properties_typeProperties_url": {
+						"value": "[parameters('LS_ADLS_properties_typeProperties_url')]"
+					},
+					"LS_ADLS_properties_typeProperties_tenant": {
+						"value": "[parameters('LS_ADLS_properties_typeProperties_tenant')]"
+					},
+					"LS_ADLS_properties_typeProperties_servicePrincipalId": {
+						"value": "[parameters('LS_ADLS_properties_typeProperties_servicePrincipalId')]"
+					},
+					"LS_ASQL_SQL_AUTH_properties_typeProperties_connectionString_secretName": {
+						"value": "[parameters('LS_ASQL_SQL_AUTH_properties_typeProperties_connectionString_secretName')]"
+					}
+				}
+			},
+			"dependsOn": []
+		}
+	]
+}
