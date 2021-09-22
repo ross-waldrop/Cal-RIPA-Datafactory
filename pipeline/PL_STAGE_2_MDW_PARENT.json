@@ -740,7 +740,7 @@
 			},
 			"SendEmailNotificationAddress": {
 				"type": "string",
-				"defaultValue": "advancedanalytics@portsamerica.com"
+				"defaultValue": "brian.rotich@insight.com"
 			},
 			"NotebookPath": {
 				"type": "string",
