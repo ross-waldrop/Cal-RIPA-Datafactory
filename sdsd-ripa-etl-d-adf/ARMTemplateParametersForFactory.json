@@ -1,0 +1,27 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "sdsd-ripa-etl-d-adf"
+		},
+		"LS_COSMOSDB_connectionString": {
+			"value": ""
+		},
+		"LS_ADLS_properties_typeProperties_url": {
+			"value": "https://sdsdripaetldsa.dfs.core.usgovcloudapi.net/"
+		},
+		"LS_ADLS_properties_typeProperties_tenant": {
+			"value": "a44e5271-a297-4daf-a3a9-f90a3146f3f5"
+		},
+		"LS_ADLS_properties_typeProperties_servicePrincipalId": {
+			"value": "498da49a-984d-42b0-a96f-e42a0bce03d1"
+		},
+		"LS_ASQL_SQL_AUTH_properties_typeProperties_connectionString_secretName": {
+			"value": "@linkedService().LS_ASQL_SQL_AUTH_CONN_SECRET"
+		},
+		"LS_KEY_VAULT_properties_typeProperties_baseUrl": {
+			"value": "https://sdsd-ripa-etl-d-kv.vault.usgovcloudapi.net/"
+		}
+	}
+}
