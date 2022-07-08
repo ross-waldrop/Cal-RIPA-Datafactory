@@ -1,0 +1,9 @@
+{
+	"name": "sdsd-ripa-etl-d-adf",
+	"location": "usgovarizona",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "e9063c32-d0d3-4d49-9b4f-804619391975",
+		"tenantId": "a44e5271-a297-4daf-a3a9-f90a3146f3f5"
+	}
+}
