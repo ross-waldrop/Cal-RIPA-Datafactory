@@ -1,6 +1,5 @@
 {
 	"name": "LS_ADLS",
-	"type": "Microsoft.DataFactory/factories/linkedservices",
 	"properties": {
 		"description": "connection to dedevadatalake",
 		"annotations": [],
@@ -16,8 +15,9 @@
 					"referenceName": "LS_KEY_VAULT",
 					"type": "LinkedServiceReference"
 				},
-				"secretName": "sec-spn-secret"
+				"secretName": "sec-azr-gov-cssa-sdso-ripaanalytics-d-sp-datalake-secret"
 			}
 		}
-	}
+	},
+	"type": "Microsoft.DataFactory/factories/linkedservices"
 }
