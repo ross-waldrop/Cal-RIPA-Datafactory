@@ -15,7 +15,7 @@
 					"referenceName": "LS_KEY_VAULT",
 					"type": "LinkedServiceReference"
 				},
-				"secretName": "sec-azr-gov-cssa-sdso-ripaanalytics-d-sp-datalake-secret"
+				"secretName": "sec-spn-datalake-secret"
 			}
 		}
 	},
