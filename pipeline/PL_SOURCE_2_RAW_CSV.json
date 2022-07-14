@@ -1,0 +1,1131 @@
+{
+	"name": "PL_SOURCE_2_RAW_CSV",
+	"properties": {
+		"description": "This pipeline will ingest csv files in the raw container and convert them to delta/parquet format",
+		"activities": [
+			{
+				"name": "ACT_GEN_SPRC_LOG_PL_START",
+				"description": "start of source_2_raw pipeline. Stored procedure that logs it.",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+					"storedProcedureParameters": {
+						"CallingProcess": {
+							"value": {
+								"value": "Start of @{pipeline().Pipeline}",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DataFactoryName": {
+							"value": {
+								"value": "@pipeline().DataFactory",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ExecutionMessage": {
+							"value": "Started copying data to delta tables",
+							"type": "String"
+						},
+						"IsEnd": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"IsError": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"IsStart": {
+							"value": "true",
+							"type": "Boolean"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunID": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerID": {
+							"value": {
+								"value": "@pipeline().TriggerId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerName": {
+							"value": {
+								"value": "@pipeline().TriggerName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerTime": {
+							"value": {
+								"value": "@pipeline().TriggerTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"PipelineTriggerType": {
+							"value": {
+								"value": "@pipeline().TriggerType",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"TableName": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"TableSchema": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"IsInnerActivity": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"RowsCopied": {
+							"value": "0",
+							"type": "Int64"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_ASQL_SQL_AUTH",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_LKP_TABLES",
+				"description": "lookup tables that are enabled in metadata table",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_SPRC_LOG_PL_START",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderStoredProcedureName": "[adf].[uspGetTableListing]",
+						"storedProcedureParameters": {
+							"DataSourceName": {
+								"type": "String",
+								"value": {
+									"value": "@pipeline().parameters.DataSourceName",
+									"type": "Expression"
+								}
+							},
+							"DataSourceType": {
+								"type": "String",
+								"value": {
+									"value": "@pipeline().parameters.DataSourceType",
+									"type": "Expression"
+								}
+							},
+							"Incremental": {
+								"type": "String",
+								"value": "0"
+							},
+							"DataSourceID": {
+								"type": "String",
+								"value": {
+									"value": "@pipeline().parameters.DataSourceID",
+									"type": "Expression"
+								}
+							}
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_ASQL_SQL_AUTH",
+						"type": "DatasetReference",
+						"parameters": {
+							"DS_ASQL_SQL_AUTH_CONN_SECRET": {
+								"value": "@variables('ETL_ASQL_CONN_SEC')",
+								"type": "Expression"
+							},
+							"DS_DB_SCHEMA_NAME": {
+								"value": "adf",
+								"type": "Expression"
+							},
+							"DS_DB_TABLE_NAME": "DataSource"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ACT_ITRC_FOR_EACH_TABLE",
+				"description": "iterate through each table and perform the copy ",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_SET_VAR_UTC_STAMP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "ACT_GEN_LKP_TABLES",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "ACT_GEN_SET_VAR_LOCAL_TIME",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('ACT_GEN_LKP_TABLES').output.value",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 8,
+					"activities": [
+						{
+							"name": "ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS",
+							"description": "copy tables to raw parquet",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "ACT_GEN_SPRC_LOG_ITEM_START",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.06:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"parallelCopies": 5
+							}
+						},
+						{
+							"name": "ACT_GEN_SET_VAR_ERR_FLG_2",
+							"description": "set error_flag variable to true",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_2",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "ERROR_FLG",
+								"value": true
+							}
+						},
+						{
+							"name": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+							"description": "runs notebook to convert parquet to delta  table",
+							"type": "DatabricksNotebook",
+							"dependsOn": [
+								{
+									"activity": "ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.01:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"notebookPath": {
+									"value": "@pipeline().parameters.NotebookPath",
+									"type": "Expression"
+								},
+								"baseParameters": {
+									"datafile_path": {
+										"value": "/@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.csv",
+										"type": "Expression"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_ADB_SPARK_CLUSTER",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "ACT_GEN_SPRC_UPDATE_LAST_EXECUTION_DATE",
+							"description": "log full load finish datetime for the source table ",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[adf].[uspUpdateLastExecutionDate]",
+								"storedProcedureParameters": {
+									"DataSourceID": {
+										"value": {
+											"value": "@{item().DataSourceId}",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_ASQL_SQL_AUTH",
+								"type": "LinkedServiceReference",
+								"parameters": {
+									"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "ACT_GEN_SET_VAR_ERR_FLG_3",
+							"description": "set error_flag variable to true",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "ERROR_FLG",
+								"value": true
+							}
+						},
+						{
+							"name": "ACT_GEN_SPRC_LOG_ITEM_START",
+							"description": "start logging",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 3,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+								"storedProcedureParameters": {
+									"CallingProcess": {
+										"value": "Copy",
+										"type": "String"
+									},
+									"DataFactoryName": {
+										"value": {
+											"value": "@pipeline().DataFactory",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"ExecutionMessage": {
+										"value": "Started copying data to delta tables",
+										"type": "String"
+									},
+									"IsEnd": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"IsError": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"IsStart": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerID": {
+										"value": {
+											"value": "@pipeline().TriggerId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerName": {
+										"value": {
+											"value": "@pipeline().TriggerName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerTime": {
+										"value": {
+											"value": "@pipeline().TriggerTime",
+											"type": "Expression"
+										},
+										"type": "DateTime"
+									},
+									"PipelineTriggerType": {
+										"value": {
+											"value": "@pipeline().TriggerType",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableName": {
+										"value": {
+											"value": "@item().DatabaseTableName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableSchema": {
+										"value": {
+											"value": "@item().DataSourceName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"IsInnerActivity": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"RowsCopied": {
+										"value": "0",
+										"type": "Int64"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_ASQL_SQL_AUTH",
+								"type": "LinkedServiceReference",
+								"parameters": {
+									"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "ACT_GEN_SPRC_LOG_ITEM_END",
+							"description": "End logging",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "ACT_GEN_SPRC_UPDATE_LAST_EXECUTION_DATE",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 3,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+								"storedProcedureParameters": {
+									"CallingProcess": {
+										"value": "Notebook",
+										"type": "String"
+									},
+									"DataFactoryName": {
+										"value": {
+											"value": "@pipeline().DataFactory",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"ExecutionMessage": {
+										"value": {
+											"value": "Finished copying data and executing Databricks notebook to transform @{item().DataSourceName}/@{item().DatabaseTableName}.parquet to Delta Table",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"IsEnd": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"IsError": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"IsStart": {
+										"value": "false",
+										"type": "Boolean"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerID": {
+										"value": {
+											"value": "@pipeline().TriggerId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerName": {
+										"value": {
+											"value": "@pipeline().TriggerName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineTriggerTime": {
+										"value": {
+											"value": "@pipeline().TriggerTime",
+											"type": "Expression"
+										},
+										"type": "DateTime"
+									},
+									"PipelineTriggerType": {
+										"value": {
+											"value": "@pipeline().TriggerType",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableName": {
+										"value": {
+											"value": "@item().DatabaseTableName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableSchema": {
+										"value": {
+											"value": "@item().DataSourceName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"IsInnerActivity": {
+										"value": "true",
+										"type": "Boolean"
+									},
+									"RowsCopied": {
+										"value": {
+											"value": "0",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_ASQL_SQL_AUTH",
+								"type": "LinkedServiceReference",
+								"parameters": {
+									"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "ACT_GEN_EPIPE_ERR_NOTIFY_2",
+							"description": "notify admins the SQL to raw copy failed",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"IsError": true,
+									"EmailTo": {
+										"value": "@pipeline().parameters.SendEmailNotificationAddress",
+										"type": "Expression"
+									},
+									"Subject": {
+										"value": "COPY FAILURE - @{pipeline().Pipeline}",
+										"type": "Expression"
+									},
+									"Message": {
+										"value": "Error Code: @{activity('ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS').error.errorCode} - Message: @{activity('ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS').error.message}",
+										"type": "Expression"
+									},
+									"Importance": "High",
+									"EmailEnabled": {
+										"value": "@pipeline().parameters.EnableNotifications",
+										"type": "Expression"
+									},
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunID": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"DataFactoryName": {
+										"value": "@pipeline().DataFactory",
+										"type": "Expression"
+									},
+									"Etl_DB_Conn_Secret": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									},
+									"Color": "Red",
+									"TableSchema": {
+										"value": "@{item().DatabaseSchemaName}",
+										"type": "Expression"
+									},
+									"TableName": {
+										"value": "@{item().DatabaseTableName}",
+										"type": "Expression"
+									},
+									"RowsCopied": 0
+								}
+							}
+						},
+						{
+							"name": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+							"description": "notify admins the SQL to raw copy failed",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"IsError": true,
+									"EmailTo": {
+										"value": "@pipeline().parameters.SendEmailNotificationAddress",
+										"type": "Expression"
+									},
+									"Subject": {
+										"value": "NOTEBOOK FAILURE - @{pipeline().Pipeline}",
+										"type": "Expression"
+									},
+									"Message": {
+										"value": "Notebook - @{pipeline().parameters.NotebookPath}  DATA FILE PATH - //@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.parquet Error Code:  @{activity('ACT_ADB_NOTE_PARQUET_2_DELTA').error.errorCode} - Message:  @{activity('ACT_ADB_NOTE_PARQUET_2_DELTA').error.message}\n\n\n",
+										"type": "Expression"
+									},
+									"Importance": "High",
+									"EmailEnabled": {
+										"value": "@pipeline().parameters.EnableNotifications",
+										"type": "Expression"
+									},
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunID": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"DataFactoryName": {
+										"value": "@pipeline().DataFactory",
+										"type": "Expression"
+									},
+									"Etl_DB_Conn_Secret": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									},
+									"Color": "Red",
+									"TableSchema": {
+										"value": "@{item().DatabaseSchemaName}",
+										"type": "Expression"
+									},
+									"TableName": {
+										"value": "@{item().DatabaseTableName}",
+										"type": "Expression"
+									},
+									"RowsCopied": {
+										"value": "@{activity('ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS').output.rowsCopied}",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+				"description": "notify admins the asql sql auth to raw lookup failed",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_LKP_TABLES",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IsError": true,
+						"EmailTo": {
+							"value": "@pipeline().parameters.SendEmailNotificationAddress",
+							"type": "Expression"
+						},
+						"Subject": {
+							"value": "FAILURE: @{pipeline().Pipeline} Lookup Failure",
+							"type": "Expression"
+						},
+						"Message": {
+							"value": "@concat('Error Code:', activity('ACT_GEN_LKP_TABLES').error.errorCode, ' - Message:', activity('ACT_GEN_LKP_TABLES').error.message)",
+							"type": "Expression"
+						},
+						"Importance": "High",
+						"EmailEnabled": {
+							"value": "@pipeline().parameters.EnableNotifications",
+							"type": "Expression"
+						},
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunID": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"DataFactoryName": {
+							"value": "@pipeline().DataFactory",
+							"type": "Expression"
+						},
+						"Etl_DB_Conn_Secret": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						},
+						"Color": "Red"
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_SET_VAR_ERR_FLG_1",
+				"description": "set error_flag variable to true",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "ERROR_FLG",
+					"value": true
+				}
+			},
+			{
+				"name": "ACT_GEN_SET_VAR_UTC_STAMP",
+				"description": "set the UTC timestamp which will be later used as part of the downloaded filenames",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "UTC_TIME",
+					"value": {
+						"value": "@{utcnow('yyyyMMddTHH:mm:ss')}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_SPRC_LOG_PL_END",
+				"description": "end of source_2_raw pipeline",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "ACT_ITRC_FOR_EACH_TABLE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[adf].[uspLogExecutionMessage]",
+					"storedProcedureParameters": {
+						"CallingProcess": {
+							"value": {
+								"value": "End of @{pipeline().Pipeline}",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DataFactoryName": {
+							"value": {
+								"value": "@pipeline().DataFactory",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ExecutionMessage": {
+							"value": "Finished copying data to delta tables",
+							"type": "String"
+						},
+						"IsEnd": {
+							"value": "true",
+							"type": "Boolean"
+						},
+						"IsError": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"IsStart": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunID": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerID": {
+							"value": {
+								"value": "@pipeline().TriggerId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerName": {
+							"value": {
+								"value": "@pipeline().TriggerName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineTriggerTime": {
+							"value": {
+								"value": "@pipeline().TriggerTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"PipelineTriggerType": {
+							"value": {
+								"value": "@pipeline().TriggerType",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"TableName": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"TableSchema": {
+							"value": "N/A",
+							"type": "String"
+						},
+						"IsInnerActivity": {
+							"value": "false",
+							"type": "Boolean"
+						},
+						"RowsCopied": {
+							"value": "0",
+							"type": "Int64"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_ASQL_SQL_AUTH",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_EPIPE_SUCCESS_NOTIFY_1",
+				"description": "email success notification",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_SPRC_LOG_PL_END",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_LOGMSG_AND_SENDEMAIL",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IsError": false,
+						"EmailTo": {
+							"value": "@pipeline().parameters.SendEmailNotificationAddress",
+							"type": "Expression"
+						},
+						"Subject": {
+							"value": "SUCCESS: @{pipeline().Pipeline}",
+							"type": "Expression"
+						},
+						"Message": {
+							"value": "SUCCESS: Source to delta tables incremental copy pipeline run has been successfully completed.",
+							"type": "Expression"
+						},
+						"Importance": "Low",
+						"EmailEnabled": {
+							"value": "@pipeline().parameters.EnableNotifications",
+							"type": "Expression"
+						},
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunID": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"DataFactoryName": {
+							"value": "@pipeline().DataFactory",
+							"type": "Expression"
+						},
+						"Etl_DB_Conn_Secret": {
+							"value": "@variables('ETL_ASQL_CONN_SEC')",
+							"type": "Expression"
+						},
+						"Color": "Green"
+					}
+				}
+			},
+			{
+				"name": "ACT_GEN_SET_VAR_LOCAL_TIME",
+				"description": "set the UTC timestamp which will be later used as part of the downloaded filenames",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "LOCAL_TIME",
+					"value": {
+						"value": "@convertTimeZone(utcnow(), 'UTC', 'Pacific Standard Time', 'yyyy-MM-dd hh:mm:ss')",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"EnableNotifications": {
+				"type": "bool",
+				"defaultValue": false
+			},
+			"SendEmailNotificationAddress": {
+				"type": "string",
+				"defaultValue": "Troy.Peckman@sdsheriff.gov"
+			},
+			"NotebookPath": {
+				"type": "string",
+				"defaultValue": "/data_engineering/Source2Raw/Source2RawFullLoad"
+			},
+			"DataSourceName": {
+				"type": "string",
+				"defaultValue": "static"
+			},
+			"DataSourceType": {
+				"type": "string",
+				"defaultValue": "csv"
+			},
+			"DataSourceID": {
+				"type": "string",
+				"defaultValue": "NULL"
+			}
+		},
+		"variables": {
+			"ERROR_FLG": {
+				"type": "Boolean"
+			},
+			"SCHEMA_NAME": {
+				"type": "String"
+			},
+			"TABLE_NAME": {
+				"type": "String"
+			},
+			"ETL_ASQL_CONN_SEC": {
+				"type": "String",
+				"defaultValue": "sec-mdw-db-connection-string"
+			},
+			"UTC_TIME": {
+				"type": "String"
+			},
+			"USER_NAME": {
+				"type": "String"
+			},
+			"SECRET_NAME": {
+				"type": "String"
+			},
+			"LOCAL_TIME": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "100_SOURCE_2_RAW/FULL"
+		},
+		"annotations": [],
+		"lastPublishTime": "2022-06-27T17:03:48Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
