@@ -566,6 +566,119 @@
 						"LS_ASQL_SQL_AUTH_CONN_SECRET": "sec-mdw-db-connection-string"
 					}
 				}
+			},
+			{
+				"name": "ACT_EXECUTE_CREATE_XMLA_FILE",
+				"description": "This activity will execute a Databricks notebook that will create a XMLA file for the Security-Readers role in the AAS ripamodel",
+				"type": "DatabricksNotebook",
+				"dependsOn": [
+					{
+						"activity": "ACT_ITRC_FOR_EACH_TABLE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": "/data_engineering/AAS/create_xmla_file"
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_ADB_SPARK_CLUSTER",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "ACT_CALL_RUN_AAS_SEC_READERS_WEBHOOK",
+				"description": "This webhook call will run the Run_AAS_Sec_Readers (sdsd-ripa-etl-d-aaa/Run_AAS_Sec_Readers) runbook (powershell script) which will execute the created XMLA file.",
+				"type": "WebHook",
+				"dependsOn": [
+					{
+						"activity": "ACT_EXECUTE_CREATE_XMLA_FILE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "ACT_SET_WEBHOOK_VARIABLE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@variables('AAS_SEC_READERS_WEBHOOK')",
+						"type": "Expression"
+					},
+					"method": "POST",
+					"body": {
+						"message": "Execute Run_AAS_Sec_Readers"
+					},
+					"timeout": "00:10:00",
+					"reportStatusOnCallBack": true
+				}
+			},
+			{
+				"name": "ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK",
+				"description": "Lookup Webhook from adf.LogicAppURL table.",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select * from adf.LogicAppURL where logicAppType = 'AAS_Sec_Readers'",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_ASQL_SQL_AUTH",
+						"type": "DatasetReference",
+						"parameters": {
+							"DS_ASQL_SQL_AUTH_CONN_SECRET": "sec-mdw-db-connection-string",
+							"DS_DB_SCHEMA_NAME": "adf",
+							"DS_DB_TABLE_NAME": "LogicAppURL"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "ACT_SET_WEBHOOK_VARIABLE",
+				"description": "Assign webhook url to variable",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "AAS_SEC_READERS_WEBHOOK",
+					"value": {
+						"value": "@activity('ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK').output.firstRow.LogicAppUrl",
+						"type": "Expression"
+					}
+				}
 			}
 		],
 		"parameters": {
@@ -575,11 +688,14 @@
 			},
 			"SendEmailNotificationAddress": {
 				"type": "string",
-				"defaultValue": "advancedanalytics@portsamerica.com"
+				"defaultValue": "Troy.Peckman@sdsheriff.gov"
 			}
 		},
 		"variables": {
 			"ERROR_FLG": {
+				"type": "String"
+			},
+			"AAS_SEC_READERS_WEBHOOK": {
 				"type": "String"
 			}
 		},
@@ -587,7 +703,7 @@
 			"name": "500_PROCESS_AAS"
 		},
 		"annotations": [],
-		"lastPublishTime": "2021-09-14T14:26:03Z"
+		"lastPublishTime": "2022-06-27T17:03:53Z"
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
 }
