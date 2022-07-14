@@ -1,0 +1,788 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "sdsd-ripa-etl-d-adf"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_STAGE_2_MDW_PARENT')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "run the correct dbr notebooks to promote raw data to staget data",
+				"activities": [
+					{
+						"name": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+						"description": "Notify admins that the lookup of the raw2stage notebooks failed",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_LKP_TABLES",
+								"dependencyConditions": [
+									"Failed"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_LOGMSG_AND_SENDEMAIL",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"IsError": true,
+								"EmailTo": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"Subject": {
+									"value": "@concat('FAILURE - ' , pipeline().Pipeline)",
+									"type": "Expression"
+								},
+								"Message": {
+									"value": "@concat('error code:',\nactivity('ACT_GEN_LKP_TABLES').output.error.errorCode\n, ' - Message: ',\nactivity('ACT_GEN_LKP_TABLES').output.error.message\n)",
+									"type": "Expression"
+								},
+								"Importance": "High",
+								"EmailEnabled": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"PipelineName": {
+									"value": "@pipeline().Pipeline",
+									"type": "Expression"
+								},
+								"PipelineRunID": {
+									"value": "@pipeline().RunId",
+									"type": "Expression"
+								},
+								"DataFactoryName": {
+									"value": "@pipeline().DataFactory",
+									"type": "Expression"
+								},
+								"Etl_DB_Conn_Secret": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								},
+								"Color": "Red"
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_SET_VAR_ERR_FLG_1",
+						"description": "set error_flag variable to true",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "IS_ERROR",
+							"value": true
+						}
+					},
+					{
+						"name": "ACT_GEN_SPRC_LOG_PL_START",
+						"description": "start raw_2_stage pipeline",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.00:05:00",
+							"retry": 3,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+							"storedProcedureParameters": {
+								"CallingProcess": {
+									"value": "Start of Raw_2_Stage",
+									"type": "String"
+								},
+								"DataFactoryName": {
+									"value": {
+										"value": "@pipeline().DataFactory",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"ExecutionMessage": {
+									"value": "Started transforming tables from raw to stage",
+									"type": "String"
+								},
+								"IsEnd": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"IsError": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"IsStart": {
+									"value": "true",
+									"type": "Boolean"
+								},
+								"PipelineName": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineRunID": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerID": {
+									"value": {
+										"value": "@pipeline().TriggerId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerName": {
+									"value": {
+										"value": "@pipeline().TriggerName",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerTime": {
+									"value": {
+										"value": "@pipeline().TriggerTime",
+										"type": "Expression"
+									},
+									"type": "DateTime"
+								},
+								"PipelineTriggerType": {
+									"value": {
+										"value": "@pipeline().TriggerType",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"TableName": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"TableSchema": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"IsInnerActivity": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"RowsCopied": {
+									"value": "0",
+									"type": "Int64"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_ASQL_SQL_AUTH",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_SPRC_LOG_PL_END",
+						"description": "end of raw_2_stage pipeline",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "ACT_ITRC_FOR_EACH_TABLE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:05:00",
+							"retry": 3,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+							"storedProcedureParameters": {
+								"CallingProcess": {
+									"value": "End of Stage_2_MDW",
+									"type": "String"
+								},
+								"DataFactoryName": {
+									"value": {
+										"value": "@pipeline().DataFactory",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"ExecutionMessage": {
+									"value": "Finished transforming tables from stage to MDW",
+									"type": "String"
+								},
+								"IsEnd": {
+									"value": "true",
+									"type": "Boolean"
+								},
+								"IsError": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"IsStart": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"PipelineName": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineRunID": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerID": {
+									"value": {
+										"value": "@pipeline().TriggerId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerName": {
+									"value": {
+										"value": "@pipeline().TriggerName",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerTime": {
+									"value": {
+										"value": "@pipeline().TriggerTime",
+										"type": "Expression"
+									},
+									"type": "DateTime"
+								},
+								"PipelineTriggerType": {
+									"value": {
+										"value": "@pipeline().TriggerType",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"TableName": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"TableSchema": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"IsInnerActivity": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"RowsCopied": {
+									"value": "0",
+									"type": "Int64"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_ASQL_SQL_AUTH",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_LKP_TABLES",
+						"type": "Lookup",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_SPRC_LOG_PL_START",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "select level\nfrom [adf].[vwProcessingDependency]\ngroup by level\norder by level asc",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_ASQL_SQL_AUTH",
+								"type": "DatasetReference",
+								"parameters": {
+									"DS_ASQL_SQL_AUTH_CONN_SECRET": "@variables('ETL_ASQL_CONN_SEC')",
+									"DS_DB_SCHEMA_NAME": "adf",
+									"DS_DB_TABLE_NAME": "vwProcessingDependency"
+								}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "ACT_ITRC_FOR_EACH_TABLE",
+						"description": "Iterate through each item and perform the copy ",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_LKP_TABLES",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('ACT_GEN_LKP_TABLES').output.value",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "ACT_GEN_SET_VAR_ERR_FLG_3",
+									"description": "set error_flag variable to true",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "IS_ERROR",
+										"value": true
+									}
+								},
+								{
+									"name": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+									"description": "Notify admins raw2stage nb failed",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_EPIPE_STAGE2MDW_CHILD",
+											"dependencyConditions": [
+												"Failed"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"IsError": true,
+											"EmailTo": {
+												"value": "@pipeline().parameters.SendEmailNotificationAddress",
+												"type": "Expression"
+											},
+											"Subject": {
+												"value": "@concat('FAILURE: Notebook Failure -  ', pipeline().Pipeline, ' ',item().datasourcename, '.', item().databasetablename)",
+												"type": "Expression"
+											},
+											"Message": {
+												"value": "@concat('Notebook - ', pipeline().parameters.NotebookPath, '/', item().targettable, ' Error Code:', activity('ACT_GEN_EPIPE_STAGE2MDW_CHILD').error.errorCode, ' - Message:', activity('ACT_GEN_EPIPE_STAGE2MDW_CHILD').error.message)",
+												"type": "Expression"
+											},
+											"Importance": "High",
+											"EmailEnabled": {
+												"value": "@pipeline().parameters.EnableNotifications",
+												"type": "Expression"
+											},
+											"PipelineName": {
+												"value": "@pipeline().Pipeline",
+												"type": "Expression"
+											},
+											"PipelineRunID": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"DataFactoryName": {
+												"value": "@pipeline().DataFactory",
+												"type": "Expression"
+											},
+											"Etl_DB_Conn_Secret": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											},
+											"Color": "Red",
+											"TableSchema": {
+												"value": "'NA'",
+												"type": "Expression"
+											},
+											"TableName": {
+												"value": "'NA'",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "ACT_GEN_SPRC_LOG_ITEM_START",
+									"description": "start ASQL SQL Auth to delta tables full load",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.00:05:00",
+										"retry": 3,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+										"storedProcedureParameters": {
+											"CallingProcess": {
+												"value": "Pipeline",
+												"type": "String"
+											},
+											"DataFactoryName": {
+												"value": {
+													"value": "@pipeline().DataFactory",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"ExecutionMessage": {
+												"value": "Started executing child pipeline per level id",
+												"type": "String"
+											},
+											"IsEnd": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"IsError": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"IsStart": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerID": {
+												"value": {
+													"value": "@pipeline().TriggerId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerName": {
+												"value": {
+													"value": "@pipeline().TriggerName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerTime": {
+												"value": {
+													"value": "@pipeline().TriggerTime",
+													"type": "Expression"
+												},
+												"type": "DateTime"
+											},
+											"PipelineTriggerType": {
+												"value": {
+													"value": "@pipeline().TriggerType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableName": {
+												"value": {
+													"value": "N/A",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableSchema": {
+												"value": {
+													"value": "N/A",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"IsInnerActivity": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"RowsCopied": {
+												"value": "0",
+												"type": "Int64"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_ASQL_SQL_AUTH",
+										"type": "LinkedServiceReference",
+										"parameters": {
+											"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "ACT_GEN_SPRC_LOG_ADB_ITEM_END",
+									"description": "",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_EPIPE_STAGE2MDW_CHILD",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.00:05:00",
+										"retry": 3,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+										"storedProcedureParameters": {
+											"CallingProcess": {
+												"value": "Pipeline",
+												"type": "String"
+											},
+											"DataFactoryName": {
+												"value": {
+													"value": "@pipeline().DataFactory",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"ExecutionMessage": {
+												"value": {
+													"value": "Finished executing pipeline for level id for level @{item().level} to MDW",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"IsEnd": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"IsError": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"IsStart": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerID": {
+												"value": {
+													"value": "@pipeline().TriggerId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerName": {
+												"value": {
+													"value": "@pipeline().TriggerName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerTime": {
+												"value": {
+													"value": "@pipeline().TriggerTime",
+													"type": "Expression"
+												},
+												"type": "DateTime"
+											},
+											"PipelineTriggerType": {
+												"value": {
+													"value": "@pipeline().TriggerType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableName": {
+												"value": "N/A",
+												"type": "String"
+											},
+											"TableSchema": {
+												"value": "N/A",
+												"type": "String"
+											},
+											"IsInnerActivity": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"RowsCopied": {
+												"value": "0",
+												"type": "Int64"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_ASQL_SQL_AUTH",
+										"type": "LinkedServiceReference",
+										"parameters": {
+											"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "ACT_GEN_EPIPE_STAGE2MDW_CHILD",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_SPRC_LOG_ITEM_START",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_STAGE_2_MDW_CHILD",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"EnableNotifications": true,
+											"SendEmailNotificationAddress": "brian.rotich@insight.com",
+											"NotebookPath": "/data_engineering",
+											"Level_ID": {
+												"value": "@{item().level}",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"EnableNotifications": {
+						"type": "bool",
+						"defaultValue": true
+					},
+					"SendEmailNotificationAddress": {
+						"type": "string",
+						"defaultValue": "brian.rotich@insight.com"
+					},
+					"NotebookPath": {
+						"type": "string",
+						"defaultValue": "/data_engineering"
+					}
+				},
+				"variables": {
+					"ETL_ASQL_CONN_SEC": {
+						"type": "String",
+						"defaultValue": "sec-mdw-db-connection-string"
+					},
+					"IS_ERROR": {
+						"type": "Boolean"
+					}
+				},
+				"folder": {
+					"name": "300_STAGE_2_MDW"
+				},
+				"annotations": [],
+				"lastPublishTime": "2021-09-14T14:26:05Z"
+			},
+			"dependsOn": []
+		}
+	]
+}
