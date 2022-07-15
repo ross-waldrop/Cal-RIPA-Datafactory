@@ -2861,10 +2861,33 @@
 			"properties": {
 				"linkedServiceName": {
 					"referenceName": "LS_COSMOSDB",
-					"type": "LinkedServiceReference"
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"LS_COSMOS_DB_ACCT_URI": {
+							"value": "@dataset().DS_COSMOS_DB_ACCT_URI",
+							"type": "Expression"
+						},
+						"LS_COSMOS_ACCESS_KEY_SEC": {
+							"value": "@dataset().DS_COSMOS_ACCESS_KEY_SEC",
+							"type": "Expression"
+						},
+						"LS_COSMOS_DB_NAME": {
+							"value": "@dataset().DS_COSMOS_DB_NAME",
+							"type": "Expression"
+						}
+					}
 				},
 				"parameters": {
 					"DS_DATABASETABLENAME": {
+						"type": "string"
+					},
+					"DS_COSMOS_DB_ACCT_URI": {
+						"type": "string"
+					},
+					"DS_COSMOS_ACCESS_KEY_SEC": {
+						"type": "string"
+					},
+					"DS_COSMOS_DB_NAME": {
 						"type": "string"
 					}
 				},
