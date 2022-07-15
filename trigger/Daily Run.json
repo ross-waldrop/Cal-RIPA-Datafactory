@@ -1,0 +1,36 @@
+{
+	"name": "Daily Run",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "PL_SOURCE_2_AAS",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"EnableNotifications": "true",
+					"SendEmailNotificationAddress": "brian.rotich@insight.com"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2021-10-05T19:06:00",
+				"timeZone": "Pacific Standard Time",
+				"schedule": {
+					"minutes": [
+						0
+					],
+					"hours": [
+						19
+					]
+				}
+			}
+		}
+	}
+}
