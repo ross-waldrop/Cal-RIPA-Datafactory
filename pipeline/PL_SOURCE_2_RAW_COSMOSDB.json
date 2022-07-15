@@ -271,6 +271,18 @@
 										"DS_DATABASETABLENAME": {
 											"value": "@item().databasetablename",
 											"type": "Expression"
+										},
+										"DS_COSMOS_DB_ACCT_URI": {
+											"value": "@item().DatabaseServerName",
+											"type": "Expression"
+										},
+										"DS_COSMOS_ACCESS_KEY_SEC": {
+											"value": "@item().DatabaseUserNamePasswordSecret",
+											"type": "Expression"
+										},
+										"DS_COSMOS_DB_NAME": {
+											"value": "@item().DatabaseName",
+											"type": "Expression"
 										}
 									}
 								}
