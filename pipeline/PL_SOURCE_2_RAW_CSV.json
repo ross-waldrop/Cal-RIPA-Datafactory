@@ -269,8 +269,45 @@
 									}
 								},
 								"enableStaging": false,
-								"parallelCopies": 5
-							}
+								"parallelCopies": 5,
+								"validateDataConsistency": false
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_ADLS_DROPZONE",
+									"type": "DatasetReference",
+									"parameters": {
+										"DS_FILENAME": {
+											"value": "@item().DataLakeEntityName",
+											"type": "Expression"
+										},
+										"DS_FILEPATH": {
+											"value": "@item().DataLakePath",
+											"type": "Expression"
+										},
+										"DS_DLCONTAINER": {
+											"value": "@item().DatalakeContainerName",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ADLS_CSV",
+									"type": "DatasetReference",
+									"parameters": {
+										"DataSourceName": {
+											"value": "@item().DatasourceName",
+											"type": "Expression"
+										},
+										"FileName": {
+											"value": "@{item().DatabaseTableName}-@{variables('UTC_TIME')}.csv",
+											"type": "Expression"
+										}
+									}
+								}
+							]
 						},
 						{
 							"name": "ACT_GEN_SET_VAR_ERR_FLG_2",
