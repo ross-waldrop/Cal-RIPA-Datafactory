@@ -22,6 +22,12 @@
 		},
 		"LS_KEY_VAULT_properties_typeProperties_baseUrl": {
 			"value": "https://sdsd-ripa-etl-d-kv.vault.usgovcloudapi.net/"
+		},
+		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications": {
+			"value": "true"
+		},
+		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
+			"value": "brian.rotich@insight.com"
 		}
 	}
 }

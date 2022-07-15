@@ -30,6 +30,14 @@
 		"LS_KEY_VAULT_properties_typeProperties_baseUrl": {
 			"type": "string",
 			"defaultValue": "https://sdsd-ripa-etl-d-kv.vault.usgovcloudapi.net/"
+		},
+		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications": {
+			"type": "string",
+			"defaultValue": "true"
+		},
+		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
+			"type": "string",
+			"defaultValue": "brian.rotich@insight.com"
 		}
 	},
 	"variables": {
@@ -305,7 +313,7 @@
 					"name": "000_LOGS_AND_EMAILS"
 				},
 				"annotations": [],
-				"lastPublishTime": "2021-09-14T14:26:03Z"
+				"lastPublishTime": "2022-06-27T17:03:45Z"
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_ASQL_SQL_AUTH')]",
@@ -607,7 +615,7 @@
 					"name": "000_LOGS_AND_EMAILS"
 				},
 				"annotations": [],
-				"lastPublishTime": "2021-09-14T14:26:03Z"
+				"lastPublishTime": "2022-06-27T17:03:46Z"
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_ASQL_SQL_AUTH')]",
@@ -2126,6 +2134,120 @@
 								"LS_ASQL_SQL_AUTH_CONN_SECRET": "sec-mdw-db-connection-string"
 							}
 						}
+					},
+					{
+						"name": "ACT_EXECUTE_CREATE_XMLA_FILE",
+						"description": "This activity will execute a Databricks notebook that will create a XMLA file for the Security-Readers role in the AAS ripamodel",
+						"type": "DatabricksNotebook",
+						"dependsOn": [
+							{
+								"activity": "ACT_ITRC_FOR_EACH_TABLE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/data_engineering/AAS/create_xmla_file"
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_ADB_SPARK_CLUSTER",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "ACT_CALL_RUN_AAS_SEC_READERS_WEBHOOK",
+						"description": "This webhook call will run the Run_AAS_Sec_Readers (sdsd-ripa-etl-d-aaa/Run_AAS_Sec_Readers) runbook (powershell script) which will execute the created XMLA file.",
+						"type": "WebHook",
+						"dependsOn": [
+							{
+								"activity": "ACT_EXECUTE_CREATE_XMLA_FILE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "ACT_SET_WEBHOOK_VARIABLE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"url": {
+								"value": "@variables('AAS_SEC_READERS_WEBHOOK')",
+								"type": "Expression"
+							},
+							"method": "POST",
+							"headers": {},
+							"body": {
+								"message": "Execute Run_AAS_Sec_Readers"
+							},
+							"timeout": "00:10:00",
+							"reportStatusOnCallBack": true
+						}
+					},
+					{
+						"name": "ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK",
+						"description": "Lookup Webhook from adf.LogicAppURL table.",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "select * from adf.LogicAppURL where logicAppType = 'AAS_Sec_Readers'",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_ASQL_SQL_AUTH",
+								"type": "DatasetReference",
+								"parameters": {
+									"DS_ASQL_SQL_AUTH_CONN_SECRET": "sec-mdw-db-connection-string",
+									"DS_DB_SCHEMA_NAME": "adf",
+									"DS_DB_TABLE_NAME": "LogicAppURL"
+								}
+							},
+							"firstRowOnly": true
+						}
+					},
+					{
+						"name": "ACT_SET_WEBHOOK_VARIABLE",
+						"description": "Assign webhook url to variable",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "AAS_SEC_READERS_WEBHOOK",
+							"value": {
+								"value": "@activity('ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK').output.firstRow.LogicAppUrl",
+								"type": "Expression"
+							}
+						}
 					}
 				],
 				"policy": {
@@ -2139,11 +2261,14 @@
 					},
 					"SendEmailNotificationAddress": {
 						"type": "string",
-						"defaultValue": "advancedanalytics@portsamerica.com"
+						"defaultValue": "Troy.Peckman@sdsheriff.gov"
 					}
 				},
 				"variables": {
 					"ERROR_FLG": {
+						"type": "String"
+					},
+					"AAS_SEC_READERS_WEBHOOK": {
 						"type": "String"
 					}
 				},
@@ -2151,11 +2276,12 @@
 					"name": "500_PROCESS_AAS"
 				},
 				"annotations": [],
-				"lastPublishTime": "2021-09-14T14:26:03Z"
+				"lastPublishTime": "2022-06-27T17:03:53Z"
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/datasets/DS_ASQL_SQL_AUTH')]",
 				"[concat(variables('factoryId'), '/linkedServices/LS_ASQL_SQL_AUTH')]",
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADB_SPARK_CLUSTER')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_LOGMSG_AND_SENDEMAIL')]"
 			]
 		},
@@ -2189,7 +2315,7 @@
 						"typeProperties": {
 							"source": {
 								"type": "AzureSqlSource",
-								"sqlReaderQuery": "select * from adf.DataSource where Raw2stage = 1",
+								"sqlReaderQuery": "select * from adf.DataSource where Raw2stage = 1 AND datasourcetype NOT LIKE 'cosmosdb'",
 								"queryTimeout": "02:00:00",
 								"partitionOption": "None"
 							},
@@ -2259,7 +2385,7 @@
 										},
 										"baseParameters": {
 											"deltatable_path": {
-												"value": "@item().DataLakePath",
+												"value": "/@{item().DataLakePath}/@{item().DatabaseTableName}.delta",
 												"type": "Expression"
 											},
 											"isincremental": {
@@ -3014,7 +3140,7 @@
 					},
 					"SendEmailNotificationAddress": {
 						"type": "string",
-						"defaultValue": "brian.rotich@insight.com"
+						"defaultValue": "Troy.Peckman@sdsheriff.gov"
 					},
 					"NotebookPath": {
 						"type": "string",
@@ -3034,7 +3160,7 @@
 					"name": "200_RAW_2_STAGE"
 				},
 				"annotations": [],
-				"lastPublishTime": "2021-09-16T15:49:27Z"
+				"lastPublishTime": "2022-06-27T17:03:49Z"
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/datasets/DS_ASQL_SQL_AUTH')]",
@@ -3649,10 +3775,270 @@
 					"name": "000_LOGS_AND_EMAILS"
 				},
 				"annotations": [],
-				"lastPublishTime": "2021-09-14T14:26:02Z"
+				"lastPublishTime": "2022-06-27T17:03:44Z"
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/datasets/DS_ASQL_SQL_AUTH')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_SOURCE_2_AAS')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "PL_RAW_2_STAGE_COSMOSDB",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_SOURCE_2_RAW_CSV",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "PL_SOURCE_2_RAW_COSMOSDB",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_RAW_2_STAGE_COSMOSDB",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"EnableNotifications": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"SendEmailNotificationAddress": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"NotebookPath": "/data_engineering/Raw2Stage/Raw2Stage_cosmosdb"
+							}
+						}
+					},
+					{
+						"name": "PL_MDW_2_ASQL",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_STAGE_2_MDW",
+								"dependencyConditions": [
+									"Completed"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_MDW_2_ASQL",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"EnableNotifications": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"SendEmailNotificationAddress": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "PL_ASQL_2_AAS_RIPAMODEL",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_MDW_2_ASQL",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_PROCESS_AAS_RIPAMODEL",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"EnableNotifications": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"SendEmailNotificationAddress": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "PL_SOURCE_2_RAW_COSMOSDB",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_SOURCE_2_RAW_COSMOSDB",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"EnableNotifications": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"SendEmailNotificationAddress": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"DataSourceName": "-",
+								"DataSourceType": "cosmosdb",
+								"DataSourceID": "NULL"
+							}
+						}
+					},
+					{
+						"name": "PL_STAGE_2_MDW",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_RAW_2_STAGE_COSMOSDB",
+								"dependencyConditions": [
+									"Completed"
+								]
+							},
+							{
+								"activity": "PL_RAW_2_STAGE",
+								"dependencyConditions": [
+									"Completed"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_STAGE_2_MDW_PARENT",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"EnableNotifications": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"SendEmailNotificationAddress": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "PL_RAW_2_STAGE",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_SOURCE_2_RAW_CSV",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "PL_SOURCE_2_RAW_COSMOSDB",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_RAW_2_STAGE",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"EnableNotifications": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"SendEmailNotificationAddress": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"NotebookPath": "/data_engineering/Raw2Stage/Raw2Stage"
+							}
+						}
+					},
+					{
+						"name": "PL_SOURCE_2_RAW_CSV",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_SOURCE_2_RAW_CSV",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"EnableNotifications": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"SendEmailNotificationAddress": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"NotebookPath": "/data_engineering/Source2Raw/Source2RawFullLoad",
+								"DataSourceName": "static",
+								"DataSourceType": "csv",
+								"DataSourceID": "NULL"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"EnableNotifications": {
+						"type": "string",
+						"defaultValue": "true"
+					},
+					"SendEmailNotificationAddress": {
+						"type": "string",
+						"defaultValue": "Troy.Peckman@sdsheriff.gov"
+					}
+				},
+				"folder": {
+					"name": "001_SCHEDULED_PIPELINES"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-06-27T17:03:54Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_RAW_2_STAGE_COSMOSDB')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_MDW_2_ASQL')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_PROCESS_AAS_RIPAMODEL')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_SOURCE_2_RAW_COSMOSDB')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_STAGE_2_MDW_PARENT')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_RAW_2_STAGE')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_SOURCE_2_RAW_CSV')]"
 			]
 		},
 		{
@@ -3664,7 +4050,7 @@
 				"activities": [
 					{
 						"name": "ACT_GEN_SPRC_LOG_PL_START",
-						"description": "start source_2_raw pipeline",
+						"description": "start of source_2_raw pipeline. Stored procedure that logs it.",
 						"type": "SqlServerStoredProcedure",
 						"dependsOn": [],
 						"policy": {
@@ -3940,11 +4326,11 @@
 											"type": "DatasetReference",
 											"parameters": {
 												"DatasourceName": {
-													"value": "@item().DatasourceName",
+													"value": "@item().DatabaseName",
 													"type": "Expression"
 												},
 												"FileName": {
-													"value": "@{item().DatabaseTableName}-@{variables('UTC_TIME')}.json",
+													"value": "@{item().DataSourceName}-@{item().DatabaseTableName}-@{variables('UTC_TIME')}.json",
 													"type": "Expression"
 												}
 											}
@@ -3970,49 +4356,12 @@
 									}
 								},
 								{
-									"name": "ACT_ADB_NOTE_PARQUET_2_DELTA",
-									"description": "runs notebook to convert parquet to delta  table",
-									"type": "DatabricksNotebook",
-									"dependsOn": [
-										{
-											"activity": "ACT_ADB_NOTE_JSON_2_PARQUET",
-											"dependencyConditions": [
-												"Succeeded"
-											]
-										}
-									],
-									"policy": {
-										"timeout": "0.01:00:00",
-										"retry": 0,
-										"retryIntervalInSeconds": 30,
-										"secureOutput": false,
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"notebookPath": {
-											"value": "@pipeline().parameters.NotebookPath",
-											"type": "Expression"
-										},
-										"baseParameters": {
-											"datafile_path": {
-												"value": "/@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.parquet",
-												"type": "Expression"
-											}
-										}
-									},
-									"linkedServiceName": {
-										"referenceName": "LS_ADB_SPARK_CLUSTER",
-										"type": "LinkedServiceReference"
-									}
-								},
-								{
 									"name": "ACT_GEN_SPRC_UPDATE_LAST_EXECUTION_DATE",
 									"description": "log full load finish datetime for the source table ",
 									"type": "SqlServerStoredProcedure",
 									"dependsOn": [
 										{
-											"activity": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+											"activity": "ACT_ADB_NOTE_JSON_2_PARQUET",
 											"dependencyConditions": [
 												"Succeeded"
 											]
@@ -4393,7 +4742,7 @@
 									"type": "ExecutePipeline",
 									"dependsOn": [
 										{
-											"activity": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+											"activity": "ACT_ADB_NOTE_JSON_2_PARQUET",
 											"dependencyConditions": [
 												"Failed"
 											]
@@ -4417,7 +4766,7 @@
 												"type": "Expression"
 											},
 											"Message": {
-												"value": "Notebook - @{pipeline().parameters.NotebookPath}  DATA FILE PATH - //@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.parquet Error Code:  @{activity('ACT_ADB_NOTE_PARQUET_2_DELTA').error.errorCode} - Message:  @{activity('ACT_ADB_NOTE_PARQUET_2_DELTA').error.message}\n\n\n",
+												"value": "Notebook - ReadJSONWriteParquet_CosmosDB - DATA FILE PATH - //@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.parquet Error Code:  @{activity('ACT_ADB_NOTE_JSON_2_PARQUET').error.errorCode} - Message:  @{activity('ACT_ADB_NOTE_JSON_2_PARQUET').error.message}\n\n\n",
 												"type": "Expression"
 											},
 											"Importance": "High",
@@ -4480,11 +4829,15 @@
 										"notebookPath": "/data_engineering/Source2Raw/ReadJSONWriteParquet_CosmosDB",
 										"baseParameters": {
 											"json_file_path": {
-												"value": "/mnt/datalake/raw/@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.json",
+												"value": "/mnt/datalake/raw/@{item().DatabaseName}/@{item().DataSourceName}-@{item().DatabaseTableName}-@{variables('UTC_TIME')}.json",
 												"type": "Expression"
 											},
 											"parquet_output_path": {
-												"value": "/mnt/datalake/raw/@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.parquet",
+												"value": "/mnt/datalake/raw/@{item().DatabaseName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}/@{item().DataSourceName}",
+												"type": "Expression"
+											},
+											"database_container_name": {
+												"value": "@item().DatabaseTableName",
 												"type": "Expression"
 											}
 										}
@@ -4492,6 +4845,1439 @@
 									"linkedServiceName": {
 										"referenceName": "LS_ADB_SPARK_CLUSTER",
 										"type": "LinkedServiceReference"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+						"description": "notify admins the asql sql auth to raw lookup failed",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_LKP_TABLES",
+								"dependencyConditions": [
+									"Failed"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"IsError": true,
+								"EmailTo": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"Subject": {
+									"value": "FAILURE: @{pipeline().Pipeline} Lookup Failure",
+									"type": "Expression"
+								},
+								"Message": {
+									"value": "@concat('Error Code:', activity('ACT_GEN_LKP_TABLES').error.errorCode, ' - Message:', activity('ACT_GEN_LKP_TABLES').error.message)",
+									"type": "Expression"
+								},
+								"Importance": "High",
+								"EmailEnabled": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"PipelineName": {
+									"value": "@pipeline().Pipeline",
+									"type": "Expression"
+								},
+								"PipelineRunID": {
+									"value": "@pipeline().RunId",
+									"type": "Expression"
+								},
+								"DataFactoryName": {
+									"value": "@pipeline().DataFactory",
+									"type": "Expression"
+								},
+								"Etl_DB_Conn_Secret": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								},
+								"Color": "Red"
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_SET_VAR_ERR_FLG_1",
+						"description": "set error_flag variable to true",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_1",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "ERROR_FLG",
+							"value": true
+						}
+					},
+					{
+						"name": "ACT_GEN_SET_VAR_UTC_STAMP",
+						"description": "set the UTC timestamp which will be later used as part of the downloaded filenames",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "UTC_TIME",
+							"value": {
+								"value": "@{utcnow('yyyyMMddTHH:mm:ss')}",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_SPRC_LOG_PL_END",
+						"description": "end of source_2_raw pipeline",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "ACT_ITRC_FOR_EACH_DIST_TABLE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:05:00",
+							"retry": 3,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+							"storedProcedureParameters": {
+								"CallingProcess": {
+									"value": {
+										"value": "End of @{pipeline().Pipeline}",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"DataFactoryName": {
+									"value": {
+										"value": "@pipeline().DataFactory",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"ExecutionMessage": {
+									"value": "Finished copying data to delta tables",
+									"type": "String"
+								},
+								"IsEnd": {
+									"value": "true",
+									"type": "Boolean"
+								},
+								"IsError": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"IsStart": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"PipelineName": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineRunID": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerID": {
+									"value": {
+										"value": "@pipeline().TriggerId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerName": {
+									"value": {
+										"value": "@pipeline().TriggerName",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerTime": {
+									"value": {
+										"value": "@pipeline().TriggerTime",
+										"type": "Expression"
+									},
+									"type": "DateTime"
+								},
+								"PipelineTriggerType": {
+									"value": {
+										"value": "@pipeline().TriggerType",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"TableName": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"TableSchema": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"IsInnerActivity": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"RowsCopied": {
+									"value": "0",
+									"type": "Int64"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_ASQL_SQL_AUTH",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_EPIPE_SUCCESS_NOTIFY_1",
+						"description": "email success notification",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_SPRC_LOG_PL_END",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_LOGMSG_AND_SENDEMAIL",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"IsError": false,
+								"EmailTo": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"Subject": {
+									"value": "SUCCESS: @{pipeline().Pipeline}",
+									"type": "Expression"
+								},
+								"Message": {
+									"value": "SUCCESS: Source to delta tables incremental copy pipeline run has been successfully completed.",
+									"type": "Expression"
+								},
+								"Importance": "Low",
+								"EmailEnabled": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"PipelineName": {
+									"value": "@pipeline().Pipeline",
+									"type": "Expression"
+								},
+								"PipelineRunID": {
+									"value": "@pipeline().RunId",
+									"type": "Expression"
+								},
+								"DataFactoryName": {
+									"value": "@pipeline().DataFactory",
+									"type": "Expression"
+								},
+								"Etl_DB_Conn_Secret": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								},
+								"Color": "Green"
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_SET_VAR_LOCAL_TIME",
+						"description": "set the UTC timestamp which will be later used as part of the downloaded filenames",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "LOCAL_TIME",
+							"value": {
+								"value": "@convertTimeZone(utcnow(), 'UTC', 'Pacific Standard Time', 'yyyy-MM-dd hh:mm:ss')",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "ACT_EXECUTE_ADD_NECESSARY_COLUMNS",
+						"description": "This notebook will add the Ori code to the userprofile dataset",
+						"type": "DatabricksNotebook",
+						"dependsOn": [
+							{
+								"activity": "ACT_ITRC_FOR_EACH_TABLE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/data_engineering/Source2Raw/AddNecessaryColumns",
+							"baseParameters": {
+								"utc_time": {
+									"value": "@variables('UTC_TIME')",
+									"type": "Expression"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_ADB_SPARK_CLUSTER",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "ACT_GEN_EPIPE_ERR_NOTIFY_4",
+						"description": "notify admins the asql sql auth to raw lookup failed",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "ACT_EXECUTE_ADD_NECESSARY_COLUMNS",
+								"dependencyConditions": [
+									"Failed"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"IsError": true,
+								"EmailTo": {
+									"value": "@pipeline().parameters.SendEmailNotificationAddress",
+									"type": "Expression"
+								},
+								"Subject": {
+									"value": "FAILURE: @{pipeline().Pipeline} Lookup Failure",
+									"type": "Expression"
+								},
+								"Message": {
+									"value": "@concat('Error Code:', activity('ACT_EXECUTE_ADD_NECESSARY_COLUMNS').error.errorCode, ' - Message:', activity('ACT_EXECUTE_ADD_NECESSARY_COLUMNS').error.message)",
+									"type": "Expression"
+								},
+								"Importance": "High",
+								"EmailEnabled": {
+									"value": "@pipeline().parameters.EnableNotifications",
+									"type": "Expression"
+								},
+								"PipelineName": {
+									"value": "@pipeline().Pipeline",
+									"type": "Expression"
+								},
+								"PipelineRunID": {
+									"value": "@pipeline().RunId",
+									"type": "Expression"
+								},
+								"DataFactoryName": {
+									"value": "@pipeline().DataFactory",
+									"type": "Expression"
+								},
+								"Etl_DB_Conn_Secret": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								},
+								"Color": "Red"
+							}
+						}
+					},
+					{
+						"name": "ACT_LKUP_DISTINCT_TABLENAME",
+						"description": "Grabs the unique table names for combining parquets across multiple agencies.",
+						"type": "Lookup",
+						"dependsOn": [
+							{
+								"activity": "ACT_EXECUTE_ADD_NECESSARY_COLUMNS",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT DISTINCT DatabaseTableName, \nDatabaseName\nFROM [adf].[DataSource]\nWHERE datasourcetype = 'cosmosdb' and isenabled = 1",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_ASQL_SQL_AUTH",
+								"type": "DatasetReference",
+								"parameters": {
+									"DS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									},
+									"DS_DB_SCHEMA_NAME": {
+										"value": "adf",
+										"type": "Expression"
+									},
+									"DS_DB_TABLE_NAME": "DataSource"
+								}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "ACT_ITRC_FOR_EACH_DIST_TABLE",
+						"description": "Combine multiple sets of parquets across multiple agencies",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "ACT_LKUP_DISTINCT_TABLENAME",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('ACT_LKUP_DISTINCT_TABLENAME').output.value",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "ACT_COMBINE_PARQUET_FILES",
+									"type": "DatabricksNotebook",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "7.00:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"notebookPath": "/data_engineering/Source2Raw/Combine_Parquets_for_MultiList_tables",
+										"baseParameters": {
+											"database_container_name": {
+												"value": "@item().DatabaseTableName",
+												"type": "Expression"
+											},
+											"parquet_output_path": {
+												"value": "/mnt/datalake/raw/@{item().DatabaseName}/main",
+												"type": "Expression"
+											},
+											"UTC_TIME": {
+												"value": "@variables('UTC_TIME')",
+												"type": "Expression"
+											},
+											"parquet_input_path": {
+												"value": "/mnt/datalake/raw/@{item().DatabaseName}",
+												"type": "Expression"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_ADB_SPARK_CLUSTER",
+										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "ACT_GEN_EPIPE_ERR_NOTIFY_5",
+									"description": "notify admins the asql sql auth to raw lookup failed",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "ACT_COMBINE_PARQUET_FILES",
+											"dependencyConditions": [
+												"Failed"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"IsError": true,
+											"EmailTo": {
+												"value": "@pipeline().parameters.SendEmailNotificationAddress",
+												"type": "Expression"
+											},
+											"Subject": {
+												"value": "FAILURE: @{pipeline().Pipeline} Lookup Failure",
+												"type": "Expression"
+											},
+											"Message": {
+												"value": "@concat('Error Code:', activity('ACT_COMBINE_PARQUET_FILES').error.errorCode, ' - Message:', activity('ACT_COMBINE_PARQUET_FILES').error.message)",
+												"type": "Expression"
+											},
+											"Importance": "High",
+											"EmailEnabled": {
+												"value": "@pipeline().parameters.EnableNotifications",
+												"type": "Expression"
+											},
+											"PipelineName": {
+												"value": "@pipeline().Pipeline",
+												"type": "Expression"
+											},
+											"PipelineRunID": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"DataFactoryName": {
+												"value": "@pipeline().DataFactory",
+												"type": "Expression"
+											},
+											"Etl_DB_Conn_Secret": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											},
+											"Color": "Red"
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"EnableNotifications": {
+						"type": "bool",
+						"defaultValue": false
+					},
+					"SendEmailNotificationAddress": {
+						"type": "string",
+						"defaultValue": "Troy.Peckman@sdsheriff.gov"
+					},
+					"DataSourceName": {
+						"type": "string",
+						"defaultValue": "-"
+					},
+					"DataSourceType": {
+						"type": "string",
+						"defaultValue": "cosmosdb"
+					},
+					"DataSourceID": {
+						"type": "string",
+						"defaultValue": "NULL"
+					}
+				},
+				"variables": {
+					"ERROR_FLG": {
+						"type": "Boolean"
+					},
+					"SCHEMA_NAME": {
+						"type": "String"
+					},
+					"TABLE_NAME": {
+						"type": "String"
+					},
+					"ETL_ASQL_CONN_SEC": {
+						"type": "String",
+						"defaultValue": "sec-mdw-db-connection-string"
+					},
+					"UTC_TIME": {
+						"type": "String"
+					},
+					"USER_NAME": {
+						"type": "String"
+					},
+					"SECRET_NAME": {
+						"type": "String"
+					},
+					"LOCAL_TIME": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "100_SOURCE_2_RAW/FULL"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-06-27T17:03:47Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ASQL_SQL_AUTH')]",
+				"[concat(variables('factoryId'), '/datasets/DS_ASQL_SQL_AUTH')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_LOGMSG_AND_SENDEMAIL_ITEM')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_LOGMSG_AND_SENDEMAIL')]",
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADB_SPARK_CLUSTER')]",
+				"[concat(variables('factoryId'), '/datasets/DS_COSMOSDB')]",
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_RAW_JSON')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_SOURCE_2_RAW_CSV')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "This pipeline will ingest csv files in the raw container and convert them to delta/parquet format",
+				"activities": [
+					{
+						"name": "ACT_GEN_SPRC_LOG_PL_START",
+						"description": "start of source_2_raw pipeline. Stored procedure that logs it.",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.00:05:00",
+							"retry": 3,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+							"storedProcedureParameters": {
+								"CallingProcess": {
+									"value": {
+										"value": "Start of @{pipeline().Pipeline}",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"DataFactoryName": {
+									"value": {
+										"value": "@pipeline().DataFactory",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"ExecutionMessage": {
+									"value": "Started copying data to delta tables",
+									"type": "String"
+								},
+								"IsEnd": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"IsError": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"IsStart": {
+									"value": "true",
+									"type": "Boolean"
+								},
+								"PipelineName": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineRunID": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerID": {
+									"value": {
+										"value": "@pipeline().TriggerId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerName": {
+									"value": {
+										"value": "@pipeline().TriggerName",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineTriggerTime": {
+									"value": {
+										"value": "@pipeline().TriggerTime",
+										"type": "Expression"
+									},
+									"type": "DateTime"
+								},
+								"PipelineTriggerType": {
+									"value": {
+										"value": "@pipeline().TriggerType",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"TableName": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"TableSchema": {
+									"value": "N/A",
+									"type": "String"
+								},
+								"IsInnerActivity": {
+									"value": "false",
+									"type": "Boolean"
+								},
+								"RowsCopied": {
+									"value": "0",
+									"type": "Int64"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_ASQL_SQL_AUTH",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+									"value": "@variables('ETL_ASQL_CONN_SEC')",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "ACT_GEN_LKP_TABLES",
+						"description": "lookup tables that are enabled in metadata table",
+						"type": "Lookup",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_SPRC_LOG_PL_START",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:05:00",
+							"retry": 3,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderStoredProcedureName": "[[adf].[uspGetTableListing]",
+								"storedProcedureParameters": {
+									"DataSourceName": {
+										"type": "String",
+										"value": {
+											"value": "@pipeline().parameters.DataSourceName",
+											"type": "Expression"
+										}
+									},
+									"DataSourceType": {
+										"type": "String",
+										"value": {
+											"value": "@pipeline().parameters.DataSourceType",
+											"type": "Expression"
+										}
+									},
+									"Incremental": {
+										"type": "String",
+										"value": "0"
+									},
+									"DataSourceID": {
+										"type": "String",
+										"value": {
+											"value": "@pipeline().parameters.DataSourceID",
+											"type": "Expression"
+										}
+									}
+								},
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_ASQL_SQL_AUTH",
+								"type": "DatasetReference",
+								"parameters": {
+									"DS_ASQL_SQL_AUTH_CONN_SECRET": {
+										"value": "@variables('ETL_ASQL_CONN_SEC')",
+										"type": "Expression"
+									},
+									"DS_DB_SCHEMA_NAME": {
+										"value": "adf",
+										"type": "Expression"
+									},
+									"DS_DB_TABLE_NAME": "DataSource"
+								}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "ACT_ITRC_FOR_EACH_TABLE",
+						"description": "iterate through each table and perform the copy ",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_SET_VAR_UTC_STAMP",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "ACT_GEN_LKP_TABLES",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "ACT_GEN_SET_VAR_LOCAL_TIME",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('ACT_GEN_LKP_TABLES').output.value",
+								"type": "Expression"
+							},
+							"isSequential": false,
+							"batchCount": 8,
+							"activities": [
+								{
+									"name": "ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS",
+									"description": "copy tables to raw parquet",
+									"type": "Copy",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_SPRC_LOG_ITEM_START",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.06:00:00",
+										"retry": 2,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "DelimitedTextSource",
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"enablePartitionDiscovery": false
+											},
+											"formatSettings": {
+												"type": "DelimitedTextReadSettings"
+											}
+										},
+										"sink": {
+											"type": "DelimitedTextSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextWriteSettings",
+												"quoteAllText": true,
+												"fileExtension": ".txt"
+											}
+										},
+										"enableStaging": false,
+										"parallelCopies": 5
+									},
+									"inputs": [
+										{
+											"referenceName": "DS_ADLS_DROPZONE",
+											"type": "DatasetReference",
+											"parameters": {
+												"DS_FILENAME": {
+													"value": "@item().DataLakeEntityName",
+													"type": "Expression"
+												},
+												"DS_FILEPATH": {
+													"value": "@item().DataLakePath",
+													"type": "Expression"
+												},
+												"DS_DLCONTAINER": {
+													"value": "@item().DatalakeContainerName",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "DS_ADLS_CSV",
+											"type": "DatasetReference",
+											"parameters": {
+												"DataSourceName": {
+													"value": "@item().DatasourceName",
+													"type": "Expression"
+												},
+												"FileName": {
+													"value": "@{item().DatabaseTableName}-@{variables('UTC_TIME')}.csv",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "ACT_GEN_SET_VAR_ERR_FLG_2",
+									"description": "set error_flag variable to true",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_2",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "ERROR_FLG",
+										"value": true
+									}
+								},
+								{
+									"name": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+									"description": "runs notebook to convert parquet to delta  table",
+									"type": "DatabricksNotebook",
+									"dependsOn": [
+										{
+											"activity": "ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.01:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"notebookPath": {
+											"value": "@pipeline().parameters.NotebookPath",
+											"type": "Expression"
+										},
+										"baseParameters": {
+											"datafile_path": {
+												"value": "/@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.csv",
+												"type": "Expression"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_ADB_SPARK_CLUSTER",
+										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "ACT_GEN_SPRC_UPDATE_LAST_EXECUTION_DATE",
+									"description": "log full load finish datetime for the source table ",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.00:05:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[adf].[uspUpdateLastExecutionDate]",
+										"storedProcedureParameters": {
+											"DataSourceID": {
+												"value": {
+													"value": "@{item().DataSourceId}",
+													"type": "Expression"
+												},
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_ASQL_SQL_AUTH",
+										"type": "LinkedServiceReference",
+										"parameters": {
+											"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "ACT_GEN_SET_VAR_ERR_FLG_3",
+									"description": "set error_flag variable to true",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "ERROR_FLG",
+										"value": true
+									}
+								},
+								{
+									"name": "ACT_GEN_SPRC_LOG_ITEM_START",
+									"description": "start logging",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.00:05:00",
+										"retry": 3,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+										"storedProcedureParameters": {
+											"CallingProcess": {
+												"value": "Copy",
+												"type": "String"
+											},
+											"DataFactoryName": {
+												"value": {
+													"value": "@pipeline().DataFactory",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"ExecutionMessage": {
+												"value": "Started copying data to delta tables",
+												"type": "String"
+											},
+											"IsEnd": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"IsError": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"IsStart": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerID": {
+												"value": {
+													"value": "@pipeline().TriggerId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerName": {
+												"value": {
+													"value": "@pipeline().TriggerName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerTime": {
+												"value": {
+													"value": "@pipeline().TriggerTime",
+													"type": "Expression"
+												},
+												"type": "DateTime"
+											},
+											"PipelineTriggerType": {
+												"value": {
+													"value": "@pipeline().TriggerType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableName": {
+												"value": {
+													"value": "@item().DatabaseTableName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableSchema": {
+												"value": {
+													"value": "@item().DataSourceName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"IsInnerActivity": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"RowsCopied": {
+												"value": "0",
+												"type": "Int64"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_ASQL_SQL_AUTH",
+										"type": "LinkedServiceReference",
+										"parameters": {
+											"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "ACT_GEN_SPRC_LOG_ITEM_END",
+									"description": "End logging",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "ACT_GEN_SPRC_UPDATE_LAST_EXECUTION_DATE",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.00:05:00",
+										"retry": 3,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[adf].[uspLogExecutionMessage]",
+										"storedProcedureParameters": {
+											"CallingProcess": {
+												"value": "Notebook",
+												"type": "String"
+											},
+											"DataFactoryName": {
+												"value": {
+													"value": "@pipeline().DataFactory",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"ExecutionMessage": {
+												"value": {
+													"value": "Finished copying data and executing Databricks notebook to transform @{item().DataSourceName}/@{item().DatabaseTableName}.parquet to Delta Table",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"IsEnd": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"IsError": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"IsStart": {
+												"value": "false",
+												"type": "Boolean"
+											},
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerID": {
+												"value": {
+													"value": "@pipeline().TriggerId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerName": {
+												"value": {
+													"value": "@pipeline().TriggerName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineTriggerTime": {
+												"value": {
+													"value": "@pipeline().TriggerTime",
+													"type": "Expression"
+												},
+												"type": "DateTime"
+											},
+											"PipelineTriggerType": {
+												"value": {
+													"value": "@pipeline().TriggerType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableName": {
+												"value": {
+													"value": "@item().DatabaseTableName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableSchema": {
+												"value": {
+													"value": "@item().DataSourceName",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"IsInnerActivity": {
+												"value": "true",
+												"type": "Boolean"
+											},
+											"RowsCopied": {
+												"value": {
+													"value": "0",
+													"type": "Expression"
+												},
+												"type": "Int64"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_ASQL_SQL_AUTH",
+										"type": "LinkedServiceReference",
+										"parameters": {
+											"LS_ASQL_SQL_AUTH_CONN_SECRET": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "ACT_GEN_EPIPE_ERR_NOTIFY_2",
+									"description": "notify admins the SQL to raw copy failed",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS",
+											"dependencyConditions": [
+												"Failed"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"IsError": true,
+											"EmailTo": {
+												"value": "@pipeline().parameters.SendEmailNotificationAddress",
+												"type": "Expression"
+											},
+											"Subject": {
+												"value": "COPY FAILURE - @{pipeline().Pipeline}",
+												"type": "Expression"
+											},
+											"Message": {
+												"value": "Error Code: @{activity('ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS').error.errorCode} - Message: @{activity('ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS').error.message}",
+												"type": "Expression"
+											},
+											"Importance": "High",
+											"EmailEnabled": {
+												"value": "@pipeline().parameters.EnableNotifications",
+												"type": "Expression"
+											},
+											"PipelineName": {
+												"value": "@pipeline().Pipeline",
+												"type": "Expression"
+											},
+											"PipelineRunID": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"DataFactoryName": {
+												"value": "@pipeline().DataFactory",
+												"type": "Expression"
+											},
+											"Etl_DB_Conn_Secret": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											},
+											"Color": "Red",
+											"TableSchema": {
+												"value": "@{item().DatabaseSchemaName}",
+												"type": "Expression"
+											},
+											"TableName": {
+												"value": "@{item().DatabaseTableName}",
+												"type": "Expression"
+											},
+											"RowsCopied": 0
+										}
+									}
+								},
+								{
+									"name": "ACT_GEN_EPIPE_ERR_NOTIFY_3",
+									"description": "notify admins the SQL to raw copy failed",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "ACT_ADB_NOTE_PARQUET_2_DELTA",
+											"dependencyConditions": [
+												"Failed"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_LOGMSG_AND_SENDEMAIL_ITEM",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"IsError": true,
+											"EmailTo": {
+												"value": "@pipeline().parameters.SendEmailNotificationAddress",
+												"type": "Expression"
+											},
+											"Subject": {
+												"value": "NOTEBOOK FAILURE - @{pipeline().Pipeline}",
+												"type": "Expression"
+											},
+											"Message": {
+												"value": "Notebook - @{pipeline().parameters.NotebookPath}  DATA FILE PATH - //@{item().DataSourceName}/@{item().DatabaseTableName}-@{variables('UTC_TIME')}.parquet Error Code:  @{activity('ACT_ADB_NOTE_PARQUET_2_DELTA').error.errorCode} - Message:  @{activity('ACT_ADB_NOTE_PARQUET_2_DELTA').error.message}\n\n\n",
+												"type": "Expression"
+											},
+											"Importance": "High",
+											"EmailEnabled": {
+												"value": "@pipeline().parameters.EnableNotifications",
+												"type": "Expression"
+											},
+											"PipelineName": {
+												"value": "@pipeline().Pipeline",
+												"type": "Expression"
+											},
+											"PipelineRunID": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"DataFactoryName": {
+												"value": "@pipeline().DataFactory",
+												"type": "Expression"
+											},
+											"Etl_DB_Conn_Secret": {
+												"value": "@variables('ETL_ASQL_CONN_SEC')",
+												"type": "Expression"
+											},
+											"Color": "Red",
+											"TableSchema": {
+												"value": "@{item().DatabaseSchemaName}",
+												"type": "Expression"
+											},
+											"TableName": {
+												"value": "@{item().DatabaseTableName}",
+												"type": "Expression"
+											},
+											"RowsCopied": {
+												"value": "@{activity('ACT_MT_COPY_SQL_WIN_AUTH_2_ADLS').output.rowsCopied}",
+												"type": "Expression"
+											}
+										}
 									}
 								}
 							]
@@ -4791,11 +6577,11 @@
 				"parameters": {
 					"EnableNotifications": {
 						"type": "bool",
-						"defaultValue": true
+						"defaultValue": false
 					},
 					"SendEmailNotificationAddress": {
 						"type": "string",
-						"defaultValue": "brian.rotich@insight.com"
+						"defaultValue": "Troy.Peckman@sdsheriff.gov"
 					},
 					"NotebookPath": {
 						"type": "string",
@@ -4803,11 +6589,11 @@
 					},
 					"DataSourceName": {
 						"type": "string",
-						"defaultValue": "-"
+						"defaultValue": "static"
 					},
 					"DataSourceType": {
 						"type": "string",
-						"defaultValue": "cosmosdb"
+						"defaultValue": "csv"
 					},
 					"DataSourceID": {
 						"type": "string",
@@ -4845,15 +6631,15 @@
 					"name": "100_SOURCE_2_RAW/FULL"
 				},
 				"annotations": [],
-				"lastPublishTime": "2021-09-15T19:53:55Z"
+				"lastPublishTime": "2022-06-27T17:03:48Z"
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_ASQL_SQL_AUTH')]",
 				"[concat(variables('factoryId'), '/datasets/DS_ASQL_SQL_AUTH')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_LOGMSG_AND_SENDEMAIL_ITEM')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_LOGMSG_AND_SENDEMAIL')]",
-				"[concat(variables('factoryId'), '/datasets/DS_COSMOSDB')]",
-				"[concat(variables('factoryId'), '/datasets/DS_ADLS_RAW_JSON')]",
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_DROPZONE')]",
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_CSV')]",
 				"[concat(variables('factoryId'), '/linkedServices/LS_ADB_SPARK_CLUSTER')]"
 			]
 		},
@@ -6510,6 +8296,672 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/PL_UPDATE_AAS_SECURITY_READERS')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "ACT_EXECUTE_CREATE_XMLA_FILE",
+						"description": "This activity will execute a Databricks notebook that will create a XMLA file for the Security-Readers role in the AAS ripamodel",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/data_engineering/AAS/create_xmla_file"
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_ADB_SPARK_CLUSTER",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "ACT_CALL_RUN_AAS_SEC_READERS_WEBHOOK",
+						"description": "This webhook call will run the Run_AAS_Sec_Readers (sdsd-ripa-etl-d-aaa/Run_AAS_Sec_Readers) runbook (powershell script) which will execute the created XMLA file.",
+						"type": "WebHook",
+						"dependsOn": [
+							{
+								"activity": "ACT_EXECUTE_CREATE_XMLA_FILE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "ACT_SET_WEBHOOK_VARIABLE",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"url": {
+								"value": "@variables('AAS_SEC_READERS_WEBHOOK')",
+								"type": "Expression"
+							},
+							"method": "POST",
+							"headers": {},
+							"body": {
+								"message": "Execute Run_AAS_Sec_Readers"
+							},
+							"timeout": "00:10:00",
+							"reportStatusOnCallBack": true
+						}
+					},
+					{
+						"name": "ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK",
+						"description": "Lookup Webhook from adf.LogicAppURL table.",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "select * from adf.LogicAppURL where logicAppType = 'AAS_Sec_Readers'",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_ASQL_SQL_AUTH",
+								"type": "DatasetReference",
+								"parameters": {
+									"DS_ASQL_SQL_AUTH_CONN_SECRET": "sec-mdw-db-connection-string",
+									"DS_DB_SCHEMA_NAME": "adf",
+									"DS_DB_TABLE_NAME": "LogicAppURL"
+								}
+							},
+							"firstRowOnly": true
+						}
+					},
+					{
+						"name": "ACT_SET_WEBHOOK_VARIABLE",
+						"description": "Assign webhook url to variable",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "AAS_SEC_READERS_WEBHOOK",
+							"value": {
+								"value": "@activity('ACT_GEN_LKP_RUN_AAS_SEC_READERS_WEBHOOK').output.firstRow.LogicAppUrl",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"variables": {
+					"AAS_SEC_READERS_WEBHOOK": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "500_PROCESS_AAS"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-06-27T17:03:55Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADB_SPARK_CLUSTER')]",
+				"[concat(variables('factoryId'), '/datasets/DS_ASQL_SQL_AUTH')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_CSV')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"DataSourceName": {
+						"type": "string"
+					},
+					"FileName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().DataSourceName",
+							"type": "Expression"
+						},
+						"fileSystem": "raw"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_DROPZONE')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"DS_FILENAME": {
+						"type": "string"
+					},
+					"DS_FILEPATH": {
+						"type": "string"
+					},
+					"DS_DLCONTAINER": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().DS_FILENAME",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().DS_FILEPATH",
+							"type": "Expression"
+						},
+						"fileSystem": {
+							"value": "@dataset().DS_DLCONTAINER",
+							"type": "Expression"
+						}
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					},
+					{
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/DS_ADLS_MDW')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
@@ -8126,6 +10578,479 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_RAW_PARQUET')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"DatabaseName": {
+						"type": "string"
+					},
+					"FileName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().DatabaseName",
+							"type": "Expression"
+						},
+						"fileSystem": "raw"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "Agency",
+						"type": "UTF8"
+					},
+					{
+						"name": "Date",
+						"type": "UTF8"
+					},
+					{
+						"name": "EditStopExplanation",
+						"type": "UTF8"
+					},
+					{
+						"name": "EditStopOfficerId",
+						"type": "UTF8"
+					},
+					{
+						"name": "ExpYears",
+						"type": "UTF8"
+					},
+					{
+						"name": "IsEdited",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "IsPiiFound",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "OfficerId",
+						"type": "UTF8"
+					},
+					{
+						"name": "OfficerName",
+						"type": "UTF8"
+					},
+					{
+						"name": "Ori",
+						"type": "UTF8"
+					},
+					{
+						"name": "OverridePii",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "Status",
+						"type": "UTF8"
+					},
+					{
+						"name": "StopDateTime",
+						"type": "UTF8"
+					},
+					{
+						"name": "StopDuration",
+						"type": "INT64"
+					},
+					{
+						"name": "StopInResponseToCFS",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "Time",
+						"type": "UTF8"
+					},
+					{
+						"name": "_attachments",
+						"type": "UTF8"
+					},
+					{
+						"name": "_etag",
+						"type": "UTF8"
+					},
+					{
+						"name": "_rid",
+						"type": "UTF8"
+					},
+					{
+						"name": "_self",
+						"type": "UTF8"
+					},
+					{
+						"name": "_ts",
+						"type": "INT64"
+					},
+					{
+						"name": "id",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListAgencyQuestion_Answer",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListAgencyQuestion_Hint",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListAgencyQuestion_MaxLength",
+						"type": "INT64"
+					},
+					{
+						"name": "ListAgencyQuestion_Name",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListAgencyQuestion_Prompt",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListAgencyQuestion_Required",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListAgencyQuestion_Type",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_BasisForSearchBrief",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_BasisForSearchPiiFound",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListPersonStopped_GenderNonconforming",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListPersonStopped_Id",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_IsStudent",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListPersonStopped_PerceivedAge",
+						"type": "INT64"
+					},
+					{
+						"name": "ListPersonStopped_PerceivedGender",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_PerceivedLgbt",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListPersonStopped_PerceivedLimitedEnglish",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListPersonStopped_PersonSearchConsentGiven",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListPersonStopped_PropertySearchConsentGiven",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStopExplanation",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStopPiiFound",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "ListSubmission_DateSubmitted",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_FileName",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_Id",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_Status",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_BlockNumber",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_HighwayExit",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_Intersection",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_LandMark",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_OutOfCounty",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "Location_PiiFound",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "Location_School",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "Location_StreetName",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_ToggleLocationOptions",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "OfficerAssignment_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "OfficerAssignment_OtherType",
+						"type": "UTF8"
+					},
+					{
+						"name": "OfficerAssignment_Type",
+						"type": "UTF8"
+					},
+					{
+						"name": "PiiEntities_Category",
+						"type": "UTF8"
+					},
+					{
+						"name": "PiiEntities_ConfidenceScore",
+						"type": "UTF8"
+					},
+					{
+						"name": "PiiEntities_EntityText",
+						"type": "UTF8"
+					},
+					{
+						"name": "PiiEntities_Source",
+						"type": "UTF8"
+					},
+					{
+						"name": "telemetry_FormCached",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "telemetry_LookupCacheDate",
+						"type": "UTF8"
+					},
+					{
+						"name": "telemetry_Offline",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "telemetry_PullFromReasonCode",
+						"type": "BOOLEAN"
+					},
+					{
+						"name": "telemetry_Template",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListActionTakenDuringStop_Action",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListActionTakenDuringStop_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListBasisForPropertySeizure_Basis",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListBasisForPropertySeizure_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListBasisForSearch_Basis",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListBasisForSearch_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListContrabandOrEvidenceDiscovered_Contraband",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListContrabandOrEvidenceDiscovered_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListPerceivedOrKnownDisability_Disability",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListPerceivedOrKnownDisability_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListPerceivedRace_Key",
+						"type": "INT64"
+					},
+					{
+						"name": "ListPersonStopped_ListPerceivedRace_Race",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListResultOfStop_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListResultOfStop_Result",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListTypeOfPropertySeized_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListTypeOfPropertySeized_Type",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStop_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStop_Reason",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_ListSubmissionError_Code",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_ListSubmissionError_DateReported",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_ListSubmissionError_ErrorType",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_ListSubmissionError_FileName",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_ListSubmissionError_Message",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListSubmission_ListSubmissionError_SubmissionId",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_GeoLocation_Latitude",
+						"type": "DOUBLE"
+					},
+					{
+						"name": "Location_GeoLocation_Longitude",
+						"type": "DOUBLE"
+					},
+					{
+						"name": "telemetry_ListStepTrace_EndTimeStamp",
+						"type": "UTF8"
+					},
+					{
+						"name": "telemetry_ListStepTrace_Index",
+						"type": "INT64"
+					},
+					{
+						"name": "telemetry_ListStepTrace_StartTimeStamp",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListResultOfStop_ListCodes_Code",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ListResultOfStop_ListCodes_Text",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStop_ListCodes_Code",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStop_ListCodes_Text",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStop_ListDetail_Key",
+						"type": "UTF8"
+					},
+					{
+						"name": "ListPersonStopped_ReasonForStop_ListDetail_Reason",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_Beat_Codes_Code",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_Beat_Codes_Text",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_City_Codes_Code",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_City_Codes_Text",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_SchoolName_Codes_Code",
+						"type": "UTF8"
+					},
+					{
+						"name": "Location_SchoolName_Codes_Text",
+						"type": "UTF8"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/DS_ASQL_SQL_AUTH')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
@@ -8349,6 +11274,93 @@
 				}
 			},
 			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Daily Run')]",
+			"type": "Microsoft.DataFactory/factories/triggers",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "PL_SOURCE_2_AAS",
+							"type": "PipelineReference"
+						},
+						"parameters": {
+							"EnableNotifications": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications')]",
+							"SendEmailNotificationAddress": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress')]"
+						}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Day",
+						"interval": 1,
+						"startTime": "2021-10-05T19:06:00",
+						"timeZone": "Pacific Standard Time",
+						"schedule": {
+							"minutes": [
+								0
+							],
+							"hours": [
+								19
+							]
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_SOURCE_2_AAS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Update_AAS_Security_Readers')]",
+			"type": "Microsoft.DataFactory/factories/triggers",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Stopped",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "PL_UPDATE_AAS_SECURITY_READERS",
+							"type": "PipelineReference"
+						},
+						"parameters": {}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Day",
+						"interval": 1,
+						"startTime": "2022-06-22T17:05:00",
+						"timeZone": "Pacific Standard Time",
+						"schedule": {
+							"minutes": [
+								5
+							],
+							"hours": [
+								5,
+								7,
+								9,
+								11,
+								13,
+								15,
+								17,
+								19,
+								21
+							]
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_UPDATE_AAS_SECURITY_READERS')]"
+			]
 		}
 	]
 }

@@ -31,6 +31,14 @@
 			"type": "string",
 			"defaultValue": "https://sdsd-ripa-etl-d-kv.vault.usgovcloudapi.net/"
 		},
+		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications": {
+			"type": "string",
+			"defaultValue": "true"
+		},
+		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
+			"type": "string",
+			"defaultValue": "brian.rotich@insight.com"
+		},
 		"containerUri": {
 			"type": "string",
 			"metadata": "URI to storage account containing linked ARM templates"
@@ -93,6 +101,12 @@
 				"parameters": {
 					"factoryName": {
 						"value": "[parameters('factoryName')]"
+					},
+					"Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications": {
+						"value": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications')]"
+					},
+					"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
+						"value": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress')]"
 					}
 				}
 			},
