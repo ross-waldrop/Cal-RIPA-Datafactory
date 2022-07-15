@@ -1,0 +1,469 @@
+{
+	"name": "DS_ADLS_RAW_PARQUET",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"DatabaseName": {
+				"type": "string"
+			},
+			"FileName": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": {
+					"value": "@dataset().FileName",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "@dataset().DatabaseName",
+					"type": "Expression"
+				},
+				"fileSystem": "raw"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": [
+			{
+				"name": "Agency",
+				"type": "UTF8"
+			},
+			{
+				"name": "Date",
+				"type": "UTF8"
+			},
+			{
+				"name": "EditStopExplanation",
+				"type": "UTF8"
+			},
+			{
+				"name": "EditStopOfficerId",
+				"type": "UTF8"
+			},
+			{
+				"name": "ExpYears",
+				"type": "UTF8"
+			},
+			{
+				"name": "IsEdited",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "IsPiiFound",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "OfficerId",
+				"type": "UTF8"
+			},
+			{
+				"name": "OfficerName",
+				"type": "UTF8"
+			},
+			{
+				"name": "Ori",
+				"type": "UTF8"
+			},
+			{
+				"name": "OverridePii",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "Status",
+				"type": "UTF8"
+			},
+			{
+				"name": "StopDateTime",
+				"type": "UTF8"
+			},
+			{
+				"name": "StopDuration",
+				"type": "INT64"
+			},
+			{
+				"name": "StopInResponseToCFS",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "Time",
+				"type": "UTF8"
+			},
+			{
+				"name": "_attachments",
+				"type": "UTF8"
+			},
+			{
+				"name": "_etag",
+				"type": "UTF8"
+			},
+			{
+				"name": "_rid",
+				"type": "UTF8"
+			},
+			{
+				"name": "_self",
+				"type": "UTF8"
+			},
+			{
+				"name": "_ts",
+				"type": "INT64"
+			},
+			{
+				"name": "id",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListAgencyQuestion_Answer",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListAgencyQuestion_Hint",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListAgencyQuestion_MaxLength",
+				"type": "INT64"
+			},
+			{
+				"name": "ListAgencyQuestion_Name",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListAgencyQuestion_Prompt",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListAgencyQuestion_Required",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListAgencyQuestion_Type",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_BasisForSearchBrief",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_BasisForSearchPiiFound",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListPersonStopped_GenderNonconforming",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListPersonStopped_Id",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_IsStudent",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListPersonStopped_PerceivedAge",
+				"type": "INT64"
+			},
+			{
+				"name": "ListPersonStopped_PerceivedGender",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_PerceivedLgbt",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListPersonStopped_PerceivedLimitedEnglish",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListPersonStopped_PersonSearchConsentGiven",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListPersonStopped_PropertySearchConsentGiven",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStopExplanation",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStopPiiFound",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "ListSubmission_DateSubmitted",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_FileName",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_Id",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_Status",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_BlockNumber",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_HighwayExit",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_Intersection",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_LandMark",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_OutOfCounty",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "Location_PiiFound",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "Location_School",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "Location_StreetName",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_ToggleLocationOptions",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "OfficerAssignment_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "OfficerAssignment_OtherType",
+				"type": "UTF8"
+			},
+			{
+				"name": "OfficerAssignment_Type",
+				"type": "UTF8"
+			},
+			{
+				"name": "PiiEntities_Category",
+				"type": "UTF8"
+			},
+			{
+				"name": "PiiEntities_ConfidenceScore",
+				"type": "UTF8"
+			},
+			{
+				"name": "PiiEntities_EntityText",
+				"type": "UTF8"
+			},
+			{
+				"name": "PiiEntities_Source",
+				"type": "UTF8"
+			},
+			{
+				"name": "telemetry_FormCached",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "telemetry_LookupCacheDate",
+				"type": "UTF8"
+			},
+			{
+				"name": "telemetry_Offline",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "telemetry_PullFromReasonCode",
+				"type": "BOOLEAN"
+			},
+			{
+				"name": "telemetry_Template",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListActionTakenDuringStop_Action",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListActionTakenDuringStop_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListBasisForPropertySeizure_Basis",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListBasisForPropertySeizure_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListBasisForSearch_Basis",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListBasisForSearch_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListContrabandOrEvidenceDiscovered_Contraband",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListContrabandOrEvidenceDiscovered_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListPerceivedOrKnownDisability_Disability",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListPerceivedOrKnownDisability_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListPerceivedRace_Key",
+				"type": "INT64"
+			},
+			{
+				"name": "ListPersonStopped_ListPerceivedRace_Race",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListResultOfStop_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListResultOfStop_Result",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListTypeOfPropertySeized_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListTypeOfPropertySeized_Type",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStop_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStop_Reason",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_ListSubmissionError_Code",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_ListSubmissionError_DateReported",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_ListSubmissionError_ErrorType",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_ListSubmissionError_FileName",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_ListSubmissionError_Message",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListSubmission_ListSubmissionError_SubmissionId",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_GeoLocation_Latitude",
+				"type": "DOUBLE"
+			},
+			{
+				"name": "Location_GeoLocation_Longitude",
+				"type": "DOUBLE"
+			},
+			{
+				"name": "telemetry_ListStepTrace_EndTimeStamp",
+				"type": "UTF8"
+			},
+			{
+				"name": "telemetry_ListStepTrace_Index",
+				"type": "INT64"
+			},
+			{
+				"name": "telemetry_ListStepTrace_StartTimeStamp",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListResultOfStop_ListCodes_Code",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ListResultOfStop_ListCodes_Text",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStop_ListCodes_Code",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStop_ListCodes_Text",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStop_ListDetail_Key",
+				"type": "UTF8"
+			},
+			{
+				"name": "ListPersonStopped_ReasonForStop_ListDetail_Reason",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_Beat_Codes_Code",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_Beat_Codes_Text",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_City_Codes_Code",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_City_Codes_Text",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_SchoolName_Codes_Code",
+				"type": "UTF8"
+			},
+			{
+				"name": "Location_SchoolName_Codes_Text",
+				"type": "UTF8"
+			}
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
