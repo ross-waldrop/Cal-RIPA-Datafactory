@@ -269,8 +269,7 @@
 									}
 								},
 								"enableStaging": false,
-								"parallelCopies": 5,
-								"validateDataConsistency": false
+								"parallelCopies": 5
 							},
 							"inputs": [
 								{
