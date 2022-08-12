@@ -11,6 +11,10 @@
 			"type": "secureString",
 			"metadata": "Secure string for 'connectionString' of 'LS_COSMOSDB'"
 		},
+		"LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId": {
+			"type": "string",
+			"defaultValue": "0707-182743-y8rouvc6"
+		},
 		"LS_ADLS_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://sdsdripaetldsa.dfs.core.usgovcloudapi.net/"
@@ -37,7 +41,7 @@
 		},
 		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
 			"type": "string",
-			"defaultValue": "brian.rotich@insight.com"
+			"defaultValue": "Kathryn.Harmata@sdsheriff.gov"
 		}
 	},
 	"variables": {
@@ -11171,7 +11175,7 @@
 						},
 						"secretName": "sec-databricks-access-token"
 					},
-					"existingClusterId": "0707-182743-y8rouvc6"
+					"existingClusterId": "[parameters('LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId')]"
 				}
 			},
 			"dependsOn": [
@@ -11311,47 +11315,6 @@
 			"dependsOn": []
 		},
 		{
-			"name": "[concat(parameters('factoryName'), '/Daily Run')]",
-			"type": "Microsoft.DataFactory/factories/triggers",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"annotations": [],
-				"runtimeState": "Started",
-				"pipelines": [
-					{
-						"pipelineReference": {
-							"referenceName": "PL_SOURCE_2_AAS",
-							"type": "PipelineReference"
-						},
-						"parameters": {
-							"EnableNotifications": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications')]",
-							"SendEmailNotificationAddress": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress')]"
-						}
-					}
-				],
-				"type": "ScheduleTrigger",
-				"typeProperties": {
-					"recurrence": {
-						"frequency": "Day",
-						"interval": 1,
-						"startTime": "2021-10-05T19:06:00",
-						"timeZone": "Pacific Standard Time",
-						"schedule": {
-							"minutes": [
-								0
-							],
-							"hours": [
-								19
-							]
-						}
-					}
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/pipelines/PL_SOURCE_2_AAS')]"
-			]
-		},
-		{
 			"name": "[concat(parameters('factoryName'), '/Update_AAS_Security_Readers')]",
 			"type": "Microsoft.DataFactory/factories/triggers",
 			"apiVersion": "2018-06-01",
@@ -11395,6 +11358,47 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/pipelines/PL_UPDATE_AAS_SECURITY_READERS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Daily Run')]",
+			"type": "Microsoft.DataFactory/factories/triggers",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "PL_SOURCE_2_AAS",
+							"type": "PipelineReference"
+						},
+						"parameters": {
+							"EnableNotifications": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_EnableNotifications')]",
+							"SendEmailNotificationAddress": "[parameters('Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress')]"
+						}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Day",
+						"interval": 1,
+						"startTime": "2021-10-05T19:06:00",
+						"timeZone": "Pacific Standard Time",
+						"schedule": {
+							"minutes": [
+								0
+							],
+							"hours": [
+								19
+							]
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_SOURCE_2_AAS')]"
 			]
 		}
 	]

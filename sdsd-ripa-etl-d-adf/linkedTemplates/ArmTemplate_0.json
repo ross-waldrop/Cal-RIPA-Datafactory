@@ -15,6 +15,10 @@
 			"type": "string",
 			"defaultValue": "https://sdsd-ripa-etl-d-kv.vault.usgovcloudapi.net/"
 		},
+		"LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId": {
+			"type": "string",
+			"defaultValue": "0707-182743-y8rouvc6"
+		},
 		"LS_ADLS_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://sdsdripaetldsa.dfs.core.usgovcloudapi.net/"
@@ -66,7 +70,7 @@
 						},
 						"secretName": "sec-databricks-access-token"
 					},
-					"existingClusterId": "0707-182743-y8rouvc6"
+					"existingClusterId": "[parameters('LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId')]"
 				}
 			},
 			"dependsOn": [

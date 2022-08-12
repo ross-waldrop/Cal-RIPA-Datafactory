@@ -8,6 +8,9 @@
 		"LS_COSMOSDB_connectionString": {
 			"value": ""
 		},
+		"LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId": {
+			"value": "0707-182743-y8rouvc6"
+		},
 		"LS_ADLS_properties_typeProperties_url": {
 			"value": "https://sdsdripaetldsa.dfs.core.usgovcloudapi.net/"
 		},
@@ -27,7 +30,7 @@
 			"value": "true"
 		},
 		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
-			"value": "brian.rotich@insight.com"
+			"value": "Kathryn.Harmata@sdsheriff.gov"
 		},
 		"containerUri": {
 			"value": ""

@@ -13,7 +13,7 @@
 		},
 		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
 			"type": "string",
-			"defaultValue": "brian.rotich@insight.com"
+			"defaultValue": "Kathryn.Harmata@sdsheriff.gov"
 		}
 	},
 	"variables": {

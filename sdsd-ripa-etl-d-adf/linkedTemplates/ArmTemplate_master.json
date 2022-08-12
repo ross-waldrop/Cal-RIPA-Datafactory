@@ -11,6 +11,10 @@
 			"type": "secureString",
 			"metadata": "Secure string for 'connectionString' of 'LS_COSMOSDB'"
 		},
+		"LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId": {
+			"type": "string",
+			"defaultValue": "0707-182743-y8rouvc6"
+		},
 		"LS_ADLS_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://sdsdripaetldsa.dfs.core.usgovcloudapi.net/"
@@ -37,7 +41,7 @@
 		},
 		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
 			"type": "string",
-			"defaultValue": "brian.rotich@insight.com"
+			"defaultValue": "Kathryn.Harmata@sdsheriff.gov"
 		},
 		"containerUri": {
 			"type": "string",
@@ -71,6 +75,9 @@
 					},
 					"LS_KEY_VAULT_properties_typeProperties_baseUrl": {
 						"value": "[parameters('LS_KEY_VAULT_properties_typeProperties_baseUrl')]"
+					},
+					"LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId": {
+						"value": "[parameters('LS_ADB_SPARK_CLUSTER_properties_typeProperties_existingClusterId')]"
 					},
 					"LS_ADLS_properties_typeProperties_url": {
 						"value": "[parameters('LS_ADLS_properties_typeProperties_url')]"
