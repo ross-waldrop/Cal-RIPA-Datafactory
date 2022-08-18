@@ -41,7 +41,7 @@
 		},
 		"Daily Run_properties_PL_SOURCE_2_AAS_parameters_SendEmailNotificationAddress": {
 			"type": "string",
-			"defaultValue": "Kathryn.Harmata@sdsheriff.gov"
+			"defaultValue": "CssaRipaPbiSupport@sdsheriff.gov"
 		},
 		"containerUri": {
 			"type": "string",
