@@ -793,7 +793,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"notebookPath": "/data_engineering/Source2Raw/ReadJSONWriteParquet_CosmosDB",
+								"notebookPath": "/data_engineering/Source2Raw/ReadJSONWriteParquet_Cosmos",
 								"baseParameters": {
 									"json_file_path": {
 										"value": "/mnt/datalake/raw/@{item().DatabaseName}/@{item().DataSourceName}-@{item().DatabaseTableName}-@{variables('UTC_TIME')}.json",
