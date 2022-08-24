@@ -4760,7 +4760,7 @@
 									"userProperties": [],
 									"typeProperties": {
 										"notebookPath": {
-											"value": "@{pipeline().parameters.NotebookPath}/@{item().notebookname}\n",
+											"value": "@{pipeline().parameters.NotebookPath}@{item().notebookname}\n",
 											"type": "Expression"
 										}
 									},
